@@ -85,9 +85,11 @@
 (de wrefresh (win)
   (curses "wrefresh" 'I win))
 
-(local) getch
+(local) '(getch cgetch)
 (de getch ()
   (curses "getch" 'I))
+(de cgetch ()
+  (char (getch)))
 
 (local) endwin
 (de endwin ()
@@ -165,13 +167,13 @@
     (keypad stdscr T)
     (noecho))
   (printw "Type any character to see it in bold\n")
-  (let (ch (getch))
-    (if (= ch (keyF 1))
-      (printw "F1 key pressed")
+  (let (ch (cgetch))
+    (if (= ch "q")
+      (printw "q key pressed")
       (prog
         (printw "The pressed key is ")
         (attron aBold)
-        (printw "%c" ch)
+        (printw "%s" ch)
         (attroff aBold)
         )))
   (refresh)
@@ -264,7 +266,6 @@
         row (getmaxy stdscr)
         col (getmaxx stdscr))
     (initscr)
-    #getmaxyx(stdscr,row,col)
     (mvprintw (/ row 2) (/ (- col (length msg)) 2) "%s" msg)
     (mvprintw (- row 2) 0 "You Entered: %s" (getstr)))
   (getch)
@@ -299,59 +300,63 @@
 #{
 The parameters taken are
 * 1. win: the window on which to operate
-* 2. ls: character to be used for the left side of the window
-* 3. rs: character to be used for the right side of the window
-* 4. ts: character to be used for the top side of the window
-* 5. bs: character to be used for the bottom side of the window
-* 6. tl: character to be used for the top left corner of the window
-* 7. tr: character to be used for the top right corner of the window
-* 8. bl: character to be used for the bottom left corner of the window
-* 9. br: character to be used for the bottom right corner of the window
+* 2. ls: char for the left side of the window
+* 3. rs: char for the right side of the window
+* 4. ts: char for the top side of the window
+* 5. bs: char for the bottom side of the window
+* 6. tl: char for the top left corner of the window
+* 7. tr: char for the top right corner of the window
+* 8. bl: char for the bottom left corner of the window
+* 9. br: char for the bottom right corner of the window
 }#
 (de wborder (win ls rs ts bs tl tr bl br)
   (curses "wborder" 'I win ls rs ts bs tl tr bl br))
 
-(local) '(winbox-demo _create-newwin _destroy-win)
+(local) '(winbox-demo _create-win _destroy-win)
 (de winbox-demo ()
   (let (stdscr (initscr)
         row (getmaxy stdscr)
         col (getmaxx stdscr)
-        height 3
-        width 10
-        starty (/ (- row height) 2)
-        startx (/ (- col width) 2)
-        mywin (_create-newwin height width starty startx))
+        h 3
+        w 10
+        sy (/ (- row h) 2)
+        sx (/ (- col w) 2)
+        win (_create-win h w sy sx))
     (cbreak)
+    (noecho)
     (keypad stdscr T)
-    (printw "Press F1 to exit")
+    (printw "Press q to exit")
     (refresh)
-    (let (ch (getch))
-      (loop
-        (T (= ch (keyF 1)) NIL)
-        (case ch
-          (keyLeft (_destroy-win mywin)
-                   (setq startx (- startx 1))
-                   (_create-newwin height width starty startx))
-          (keyRight (_destroy-win mywin)
-                    (setq startx (+ startx 1))
-                    (_create-newwin height width starty startx))
-          (keyUp (_destroy-win mywin)
-                 (setq starty (- starty 1))
-                 (_create-newwin height width starty startx))
-          (keyDown (_destroy-win mywin)
-                   (setq starty (+ starty 1))
-                   (_create-newwin height width starty startx)))
-        (setq ch (getch))))
+    (let (ch (cgetch))
+      (while (not (= ch "q"))
+        (cond
+          ((= ch "h")
+           (_destroy-win win)
+           (setq sx (- sx 1))
+           (setq win (_create-win h w sy sx)))
+          ((= ch "l") 
+           (_destroy-win win)
+           (setq sx (+ sx 1))
+           (setq win (_create-win h w sy sx)))
+          ((= ch "k")
+           (_destroy-win win)
+           (setq sy (- sy 1))
+           (setq win (_create-win h w sy sx)))
+          ((= ch "j")
+           (_destroy-win win)
+           (setq sy (+ sy 1))
+           (setq win (_create-win h w sy sx))))
+        (setq ch (cgetch))))
     (endwin)
     (bye)))
 
-(de _create-newwin (h w sx sy)
+(de _create-win (h w sx sy)
   (let (win (newwin h w sx sy))
     (box win 0 0)
     (wrefresh win)
     win))
 
 (de _destroy-win (win)
-  (wborder win " " " " " " " " " " " " " " " ")
+  (wborder win 32 32 32 32 32 32 32 32)
   (wrefresh win)
   (delwin win))
