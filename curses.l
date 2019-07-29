@@ -1,17 +1,28 @@
 #(symbols 'curses 'pico)
 
-(local) Lib
-(setq Lib "/data/data/com.termux/files/usr/lib/libncurses.so")
+(local) paths
+(setq paths '("libncursesw.so"
+              "libncursesw.so.6"
+              "libncursesw.so.5"
+              "libncurses.so"
+              "libncurses.so.6"
+              "libncurses.so.5"
+              "/data/data/com.termux/files/usr/lib/libncurses.so"))
 
-(local) curses
+(local) find-lib
+(de find-lib ()
+  (or (find '((path) (n0 (native "@" "dlopen" 'N path 257))) paths)
+      (quit "No CURSES found")))
+
+(local) curses lib
 (de curses @
-  (pass 'native Lib))
+  (pass 'native (if (get lib) lib (find-lib))))
 
 (local) keyF
 (de keyF (X)
   (+ X 264))
 
-(local) (keyDown keyUp keyLeft keyRight)
+(local) '(keyDown keyUp keyLeft keyRight)
 (setq
   keyDown 402
   keyUp 403
@@ -22,7 +33,7 @@
 (de ncursesBits (M S)
    (>> (- (+ S 8)) M) )
 
-(local) (aStandout aUnderline aReverse aBlink aDim aBold aAltcharset aInvis aProtect aHorizontal aLeft aLow aRight aTop aVertical aItalic)
+(local) '(aStandout aUnderline aReverse aBlink aDim aBold aAltcharset aInvis aProtect aHorizontal aLeft aLow aRight aTop aVertical aItalic)
 (setq 
   aStandout (ncursesBits 1 8)
   aUnderline (ncursesBits 1 9)
@@ -41,7 +52,7 @@
   aVertical (ncursesBits 1 22)
   aItalic (ncursesBits 1 23))
 
-(local) (cBlack cRed cGreen cYellow cBlue cMagenta cCyan cWhite)
+(local) '(cBlack cRed cGreen cYellow cBlue cMagenta cCyan cWhite)
 (setq
   cBlack 0
   cRed 1
@@ -58,7 +69,7 @@
 (local) initscr
 (de initscr () (curses "initscr" 'N))
 
-(local) (printw mvprintw wprintw mvwprintw)
+(local) '(printw mvprintw wprintw mvwprintw)
 (de printw @
   (pass 'curses "printw" NIL))
 (de mvprintw (y x . @)
@@ -68,7 +79,7 @@
 (de mvwprintw (y x win . @)
   (pass 'curses "mvwprintw" NIL win y x))
 
-(local) (refresh wrefresh)
+(local) '(refresh wrefresh)
 (de refresh ()
   (curses "refresh" 'I))
 (de wrefresh (win)
@@ -127,7 +138,7 @@
 (de attrset @
   (curses "attrset" 'I (pass '|)))
 
-(local) (chgat mvchgat wchgat mvwchgat)
+(local) '(chgat mvchgat wchgat mvwchgat)
 (de chgat (n attr pair)
   (curses "chgat" 'I n attr pair NIL))
 (de mvchgat (y x n attr pair)
@@ -137,7 +148,7 @@
 (de mvwchgat (win y x n attr pair)
   (curses "chgat" 'I win y x n attr pair NIL))
 
-(local) (standend wstandend standout wstandout)
+(local) '(standend wstandend standout wstandout)
 (de standend () (curses "standend" 'I))
 (de wstandend (win) (curses "wstandend" 'I win))
 (de standout () (curses "standout" 'I))
@@ -168,7 +179,7 @@
   (endwin)
   (bye))
 
-(local) (addch mvaddch waddch mvwaddch)
+(local) '(addch mvaddch waddch mvwaddch)
 (de addch (ch)
   (curses "addch" NIL ch))
 (de mvaddch (row col ch)
@@ -182,7 +193,7 @@
 (de vwprintw (win . @)
   (pass 'curses "vwprintw" NIL win))
 
-(local) (getmaxy getmaxx)
+(local) '(getmaxy getmaxx)
 (de getmaxy (win)
   (curses "getmaxy" 'I win))
 (de getmaxx (win)
@@ -206,7 +217,7 @@
   (endwin)
   (bye))
 
-(local) (addstr mvaddstr waddstr mvwaddstr)
+(local) '(addstr mvaddstr waddstr mvwaddstr)
 (de addstr @
   (pass 'curses "addstr" NIL))
 (de mvaddstr (y x . @)
@@ -216,7 +227,7 @@
 (de mvwaddstr (y x win . @)
   (pass 'curses "mvwaddstr" NIL y x win))
 
-(local) (scanw mvscanw wscanw mvwscanw)
+(local) '(scanw mvscanw wscanw mvwscanw)
 (de scanw @
   (pass 'curses "scanw" NIL))
 (de mvscanw (y x . @)
@@ -234,7 +245,7 @@
 (de charar (size)
   (list 's (cons size 'C size)))
 
-(local) (getstr mvgetstr wgetstr mvwgetstr)
+(local) '(getstr mvgetstr wgetstr mvwgetstr)
 (de getstr ()
   (let (s NIL)
     (curses "getstr" 'I (charar 100))
@@ -260,7 +271,7 @@
   (endwin)
   (bye))
 
-(local) (start_color init_pair)
+(local) '(start_color init_pair)
 (de start_color () (curses "start_color" 'I))
 (de init_pair (pair f b) (curses "init_pair" 'I pair f b))
 
@@ -285,10 +296,22 @@
   (curses "delwin" 'I))
 
 (local) wborder
+#{
+The parameters taken are
+* 1. win: the window on which to operate
+* 2. ls: character to be used for the left side of the window
+* 3. rs: character to be used for the right side of the window
+* 4. ts: character to be used for the top side of the window
+* 5. bs: character to be used for the bottom side of the window
+* 6. tl: character to be used for the top left corner of the window
+* 7. tr: character to be used for the top right corner of the window
+* 8. bl: character to be used for the bottom left corner of the window
+* 9. br: character to be used for the bottom right corner of the window
+}#
 (de wborder (win ls rs ts bs tl tr bl br)
   (curses "wborder" 'I win ls rs ts bs tl tr bl br))
 
-(local) (winbox-demo _create-newwin _destroy-win)
+(local) '(winbox-demo _create-newwin _destroy-win)
 (de winbox-demo ()
   (let (stdscr (initscr)
         row (getmaxy stdscr)
@@ -319,7 +342,8 @@
                    (setq starty (+ starty 1))
                    (_create-newwin height width starty startx)))
         (setq ch (getch))))
-    (endwin)))
+    (endwin)
+    (bye)))
 
 (de _create-newwin (h w sx sy)
   (let (win (newwin h w sx sy))
@@ -331,15 +355,3 @@
   (wborder win " " " " " " " " " " " " " " " ")
   (wrefresh win)
   (delwin win))
-#{ 
-The parameters taken are
-* 1. win: the window on which to operate
-* 2. ls: character to be used for the left side of the window
-* 3. rs: character to be used for the right side of the window
-* 4. ts: character to be used for the top side of the window
-* 5. bs: character to be used for the bottom side of the window
-* 6. tl: character to be used for the top left corner of the window
-* 7. tr: character to be used for the top right corner of the window
-* 8. bl: character to be used for the bottom left corner of the window
-* 9. br: character to be used for the bottom right corner of the window
-}#
