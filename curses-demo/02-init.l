@@ -1,0 +1,23 @@
+(load "../curses.l")
+
+(de init-demo ()
+  (let (stdscr (initscr))
+    (raw)
+    (keypad stdscr T)
+    (noecho))
+  (printw "Type any character to see it in bold\n")
+  (let (ch (cgetch))
+    (if (= ch "q")
+      (printw "q key pressed")
+      (prog
+        (printw "The pressed key is ")
+        (attron aBold)
+        (printw ch)
+        (attroff aBold)
+        )))
+  (refresh)
+  (getch)
+  (endwin)
+  (bye))
+
+(init-demo)
