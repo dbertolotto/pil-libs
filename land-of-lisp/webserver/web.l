@@ -27,15 +27,97 @@
 (test "foo " (decode-param "foo+"))
 (test "foo baz" (decode-param "foo+baz"))
 
+(de ssplit (S SS)
+  (mapcar 'pack (split (chop S) SS)))
+
+(test NIL (ssplit NIL NIL))
+(test NIL (ssplit NIL "="))
+(test NIL (ssplit "" "="))
+(test '("aa") (ssplit "aa" NIL))
+(test '("aa") (ssplit "aa" ""))
+(test '("aa") (ssplit "aa" "="))
+(test '("aa" NIL) (ssplit "aa=" "="))
+(test '(NIL "aa") (ssplit "=aa" "="))
+(test '("aa" NIL NIL) (ssplit "aa==" "="))
+(test '("aa" "bb") (ssplit "aa=bb" "="))
+(test '("aa" "bb" "cc") (ssplit "aa=bb=cc" "="))
+
+(de parse-param (S)
+  (let (L (ssplit S "="))
+    (cons (intern (car L))
+          (decode-param (cadr L)))))
+
+(test '(aa . NIL) (parse-param "aa"))
+(test '(aa . NIL) (parse-param "aa="))
+(test '(NIL . "bb") (parse-param "=bb"))
+(test '(aa . "bb") (parse-param "aa=bb"))
+
 (de parse-params (S)
-  (pack
-    (make
-      (for (L (chop S) L)
-        (let (A (pop 'L))
-          (link
-            (case A
-              ("%" (http-char (pop 'L) (pop 'L)))
-              ("+" " ")
-              (T A))))))))
+  (mapcar 'parse-param (ssplit S "&")))
+
+(test '((aa . "bb")) (parse-params "aa=bb"))
+(test '((aa . "bb") (cc . NIL)) (parse-params "aa=bb&cc="))
+(test '((aa . "bb") (cc . "dd")) (parse-params "aa=bb&cc=dd"))
+
+(de nil? (E)
+  (== E NIL))
+
+(de nnil? (E)
+  (not (nil? E)))
+
+(test T (nnil? 'a))
+(test NIL (nnil? NIL))
+
+(de parse-url (S)
+  (let (L (ssplit S " ")
+        Lf (filter nnil? L)
+        Url (ssplit (cadr Lf) "?"))
+    (list (intern (car Lf)) 
+          (car Url)
+          (parse-params (cadr Url))
+          (caddr Lf))))
+    
+(test '(GET "/lolcats.html" NIL "HTTP/1.1") (parse-url "GET  /lolcats.html  HTTP/1.1"))
+(test '(GET "/lolcats.html" ((extra-funny . "yes")) "HTTP/1.1")
+      (parse-url "GET  /lolcats.html?extra-funny=yes  HTTP/1.1"))
+
+(de triml (S)
+  (pack (flip (trim (flip (chop S))))))
+
+(de trimr (S)
+  (pack (trim (chop S))))
+
+(de trimlr (S)
+  (pack (clip (chop S))))
+
+(test "a b" (trimlr " a b "))
+
+#(de process-header-line (Line)
+#  (let)) 
+
+(de get-header ()
+  (make 
+    (while (line T)
+      (let (L (mapcar 'trimlr (ssplit @ ":")))
+        (when L
+          (link (cons (intern (car L)) (cadr L))))))))
+
+(test '((foo . "1") (bar . "abc, 123"))
+      (pipe (prinl "foo: 1^Jbar: abc, 123^J^Jbody:something") (get-header)))
+
+(de get-content-param (Header)
+  (let (Length (format (cdar (filter '((P) (= (car P) 'content-length)) Header))))
+    (when Length
+      (parse-params (pack (head Length (till NIL)))))))
+
+(test '((aa . "bb") (cc . "dd"))
+      (pipe (prinl "foo: 1^Jbar: abc, 123^Jcontent-length: 11^J^Jaa=bb&cc=dd")
+            (get-content-param (get-header))))
+(test '((aa . "bb") (cc . "d"))
+      (pipe (prinl "foo: 1^Jbar: abc, 123^Jcontent-length: 10^J^Jaa=bb&cc=dd")
+            (get-content-param (get-header))))
+(test '((aa . "bb") (cc . "dd^J"))
+      (pipe (prinl "foo: 1^Jbar: abc, 123^Jcontent-length: 12^J^Jaa=bb&cc=dd")
+            (get-content-param (get-header))))
 
 (bye)
