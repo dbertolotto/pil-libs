@@ -72,11 +72,11 @@
   (let (L (ssplit S " ")
         Lf (filter nnil? L)
         Url (ssplit (cadr Lf) "?"))
-    (list (intern (car Lf)) 
+    (list (intern (car Lf))
           (car Url)
           (parse-params (cadr Url))
           (caddr Lf))))
-    
+
 (test '(GET "/lolcats.html" NIL "HTTP/1.1") (parse-url "GET  /lolcats.html  HTTP/1.1"))
 (test '(GET "/lolcats.html" ((extra-funny . "yes")) "HTTP/1.1")
       (parse-url "GET  /lolcats.html?extra-funny=yes  HTTP/1.1"))
@@ -93,10 +93,10 @@
 (test "a b" (trimlr " a b "))
 
 #(de process-header-line (Line)
-#  (let)) 
+#  (let))
 
 (de get-header ()
-  (make 
+  (make
     (while (line T)
       (let (L (mapcar 'trimlr (ssplit @ ":")))
         (when L
@@ -119,5 +119,48 @@
 (test '((aa . "bb") (cc . "dd^J"))
       (pipe (prinl "foo: 1^Jbar: abc, 123^Jcontent-length: 12^J^Jaa=bb&cc=dd")
             (get-content-param (get-header))))
+
+
+(server (Request-handler PortN)
+  (loop
+    (setq Port (port PortN)
+    (setq Sock (listen Port)) # Listen
+    (prinl "Server (Pid " *Pid ") listening on port "     PortN)
+    (NIL (fork) (child-handler Request-handler Port)) # Accepted
+    (close Sock)) # Parent: Close socket and continue
+
+(de child-handler (Request-handler Port)
+   (close Port)                                         (prinl (stamp) " | " *Pid " | Client connected from "
+  *Adr)
+   (in Sock
+     (until (eof)
+       (out Sock
+         (Request-handler))
+       (close Sock)))
+   (prinl (stamp) " | " *Pid " | Client disconnected")
+   (bye))
+
+#{
+(defun serve (request-handler)
+  (let ((socket (socket-server 8080)))
+    (unwind-protect
+       (loop (with-open-stream (stream (socket-accept socket))
+                 (let* ((url    (parse-url (read-line stream)))
+                        (path   (car url))
+                        (header (get-header stream))
+                        (params (append (cdr url)
+                                        (get-content-params stream header)))
+                        (*standard-output* stream))
+                   (funcall request-handler path header params))))
+       (socket-server-close socket))))
+
+(defun hello-request-handler (path header params)
+  (if (equal path "greeting")
+      (let ((name (assoc 'name params)))
+        (if (not name)
+            (princ "<form>What is your name?<input name='name' /></form>")
+            (format t "Nice to meet you, ~a!" (cdr name))))
+      (princ "Sorry... I don't know that page.")))
+}#
 
 (bye)
