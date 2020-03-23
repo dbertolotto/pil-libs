@@ -1,0 +1,30 @@
+(load "string.l")
+(symbols '(pico string))
+
+(de test-triml ()
+  (test "a b " (triml " a b ")))
+
+(de test-trimr ()
+  (test " a b" (trimr " a b ")))
+
+(de test-trims ()
+  (test "a b" (trims " a b ")))
+
+(de test-splits ()
+  (test NIL (splits NIL NIL))
+  (test NIL (splits NIL "="))
+  (test NIL (splits "" "="))
+  (test '("aa") (splits "aa" NIL))
+  (test '("aa") (splits "aa" ""))
+  (test '("aa") (splits "aa" "="))
+  (test '("aa" NIL) (splits "aa=" "="))
+  (test '(NIL "aa") (splits "=aa" "="))
+  (test '("aa" NIL NIL) (splits "aa==" "="))
+  (test '("aa" "bb") (splits "aa=bb" "="))
+  (test '("aa" "bb" "cc") (splits "aa=bb=cc" "=")))
+
+(de tests ()
+  (test-triml)
+  (test-trimr)
+  (test-trims)
+  (test-splits))

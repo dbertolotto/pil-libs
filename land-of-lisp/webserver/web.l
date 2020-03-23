@@ -1,11 +1,12 @@
-(load "../../lib/string.l" "../../lib/util.l")
+(load "../../lib/string.l"
+      "../../lib/util.l")
 (symbols '(pico string util))
 
-(de http-char (C1 C2)
+(de decode-char (C1 C2)
   (char (hex (pack C1 C2))))
 
-(test "?" (http-char "3" "f"))
-(test " " (http-char "2" "0"))
+(test "?" (decode-char "3" "f"))
+(test " " (decode-char "2" "0"))
 
 (de decode-param (S)
   (pack
@@ -14,7 +15,7 @@
         (let (A (pop 'L))
           (link
             (case A
-              ("%" (http-char (pop 'L) (pop 'L)))
+              ("%" (decode-char (pop 'L) (pop 'L)))
               ("+" " ")
               (T A))))))))
 
@@ -31,25 +32,10 @@
 (test "foo " (decode-param "foo+"))
 (test "foo baz" (decode-param "foo+baz"))
 
-(de ssplit (S SS)
-  (mapcar 'pack (split (chop S) SS)))
-
-(test NIL (ssplit NIL NIL))
-(test NIL (ssplit NIL "="))
-(test NIL (ssplit "" "="))
-(test '("aa") (ssplit "aa" NIL))
-(test '("aa") (ssplit "aa" ""))
-(test '("aa") (ssplit "aa" "="))
-(test '("aa" NIL) (ssplit "aa=" "="))
-(test '(NIL "aa") (ssplit "=aa" "="))
-(test '("aa" NIL NIL) (ssplit "aa==" "="))
-(test '("aa" "bb") (ssplit "aa=bb" "="))
-(test '("aa" "bb" "cc") (ssplit "aa=bb=cc" "="))
-
 (de parse-param (S)
-  (let (L (ssplit S "="))
-    (cons (intern (car L))
-          (decode-param (cadr L)))))
+  (let (Pair (splits S "="))
+    (cons (intern (lowc (car Pair)))
+          (decode-param (cadr Pair)))))
 
 (test '(aa . NIL) (parse-param "aa"))
 (test '(aa . NIL) (parse-param "aa="))
@@ -58,33 +44,29 @@
 (test '(aa . "über") (parse-param "aa=%FCber"))
 
 (de parse-params (S)
-  (mapcar 'parse-param (ssplit S "&")))
+  (mapcar 'parse-param (splits S "&")))
 
 (test '((aa . "bb")) (parse-params "aa=bb"))
 (test '((aa . "bb") (cc . NIL)) (parse-params "aa=bb&cc="))
 (test '((aa . "bb") (cc . "dd")) (parse-params "aa=bb&cc=dd"))
 
 (de parse-url (S)
-  (let (L (ssplit S " ")
-        Lf (filter nnil? L)
-        Url (ssplit (cadr Lf) "?"))
-    (list (intern (car Lf))
-          (car Url)
+  (let (Parts (filter nnil? (splits S " "))
+        Url (splits (cadr Parts) "?"))
+    (list (intern (uppc (car Parts)))
+          (lowc (car Url))
           (parse-params (cadr Url))
-          (caddr Lf))))
+          (caddr Parts))))
 
 (test '(GET "/" NIL "HTTP/1.1") (parse-url "GET  /  HTTP/1.1"))
 (test '(GET "/lolcats.html" NIL "HTTP/1.1") (parse-url "GET  /lolcats.html  HTTP/1.1"))
 (test '(GET "/lolcats.html" ((extra-funny . "yes")) "HTTP/1.1")
       (parse-url "GET  /lolcats.html?extra-funny=yes  HTTP/1.1"))
 
-#(de process-header-line (Line)
-#  (let))
-
 (de get-header ()
   (make
     (while (line T)
-      (let (L (mapcar 'trimlr (ssplit @ ":")))
+      (let (L (mapcar 'trims (splits @ ":")))
         (when L
           (link (cons (intern (car L)) (cadr L))))))))
 
@@ -92,7 +74,7 @@
       (pipe (prinl "foo: 1^Jbar: abc, 123^J^Jbody:something") (get-header)))
 
 (de get-content-params (Header)
-  (let (Length (format (cdar (filter '((P) (= (car P) 'content-length)) Header))))
+  (let (Length (format (cdr (assoc 'content-length Header))))
     (when Length
       (parse-params (pack (head Length (till NIL)))))))
 
@@ -158,7 +140,7 @@
       (hello-request-handler 'GET "/lolcats" NIL NIL))
 (test "<form>What is your name?<input name='name' /></form>"
       (hello-request-handler 'GET "/greeting" NIL NIL))
-(test "<html>Nice to meet you, Bob!</html>" 
+(test "<html>Nice to meet you, Bob!</html>"
       (hello-request-handler 'GET "/greeting" NIL '((name . "Bob"))))
 
 (de response (Version Status Message Header Body)
@@ -167,5 +149,5 @@
         "\n"
         Body))
 
-(server hello-request-handler 8080)
-(bye)
+#(server hello-request-handler 8080)
+#(bye)
