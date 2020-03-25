@@ -34,9 +34,8 @@
 
 (de get-header (Lines)
   (make
-    (while Lines
-      (let (Line (pop 'Lines)
-            L (mapcar trims (splits Line ":")))
+    (while (pop 'Lines)
+      (let (L (mapcar trims (splits @ ":")))
         (when L
           (link (cons (intern (car L)) (cadr L))))))))
 
@@ -60,7 +59,8 @@
   (close Port)
   (log "Client connected from " *Adr)
   (let (Lines (in Sock
-                (make (while (line T) (link @))))
+                #(make (while (line T) (link @))))
+                (make (while (poll Sock) (link (line T)))))
                 #(make (until (eof) (link (line T)))))
                 #(make (while (char) (link @))))
                 #(till 4096))
@@ -72,8 +72,7 @@
   (bye))
 
 (de http-request-handler (Lines)
-  (prinl Lines)
-  (bye)
+  (mapc prinl Lines)
   (let (Url-line (pop 'Lines)
         Url (parse-url Url-line)
         Type (car Url)
