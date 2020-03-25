@@ -32,17 +32,18 @@
           (parse-params (cadr Url))
           (caddr Parts))))
 
-(de get-header ()
+(de get-header (Lines)
   (make
-    (while (line T)
-      (let (L (mapcar 'trims (splits @ ":")))
+    (while Lines
+      (let (Line (pop 'Lines)
+            L (mapcar trims (splits Line ":")))
         (when L
           (link (cons (intern (car L)) (cadr L))))))))
 
-(de get-content-params (Header)
+(de get-content-params (Header Lines)
   (let (Length (format (cdr (assoc 'content-length Header))))
     (when Length
-      (parse-params (pack (head Length (till NIL)))))))
+      (parse-params (pack (head Length (chop (fish atom Lines))))))))
 
 (de log @
   (pass 'prinl (stamp) " | " *Pid " | "))
@@ -56,36 +57,46 @@
       (close Sock))))
 
 (de child-handler (Request-handler Port)
-   (close Port)
-   (log "Client connected from " *Adr)
-   (in Sock
-     (until (eof)
-       (let (Url-line (line T)
-             Url (parse-url Url-line)
-             Type (car Url)
-             Path (cadr Url)
-             Url-params (caddr Url)
-             Version (cadddr Url)
-             Header (get-header)
-             Params (append Url-params (get-content-params Header))
-             Response-body (Request-handler Type Path Header Params)
-             Response (response Version 200 'OK '((content-type . "text/html; charset=utf-8")) Response-body))
-         (prinl (stamp) " | " *Pid " | URL: " Url-line)
-         (prinl (stamp) " | " *Pid " | Type: " Type)
-         (prinl (stamp) " | " *Pid " | Path: " Path)
-         (prinl (stamp) " | " *Pid " | URL-params: " Url-params)
-         (prinl (stamp) " | " *Pid " | Version: " Version)
-         (for P Header
-           (prinl (stamp) " | " *Pid " | Header: " (car P) ": " (cdr P)))
-         (for P Params
-           (prinl (stamp) " | " *Pid " | Params: " (car P) ": " (cdr P)))
-         (prinl Response-Body)
-         (prinl Response)
-         (out Sock
-           (prinl Response)))
-       (close Sock)))
-   (prinl (stamp) " | " *Pid " | Client disconnected")
-   (bye))
+  (close Port)
+  (log "Client connected from " *Adr)
+  (let (Lines (in Sock
+                (make (while (line T) (link @))))
+                #(make (until (eof) (link (line T)))))
+                #(make (while (char) (link @))))
+                #(till 4096))
+        Response (Request-handler Lines))
+    (out Sock
+      (prinl Response)))
+  (close Sock)
+  (log "Client disconnected")
+  (bye))
+
+(de http-request-handler (Lines)
+  (prinl Lines)
+  (bye)
+  (let (Url-line (pop 'Lines)
+        Url (parse-url Url-line)
+        Type (car Url)
+        Path (cadr Url)
+        Url-params (caddr Url)
+        Version (cadddr Url)
+        Header (get-header Lines)
+        Params (append Url-params
+                       (get-content-params Header Lines))
+        Response-body (hello-request-handler Type Path Header Params)
+        Response (response Version 200 'OK '((content-type . "text/html; charset=utf-8")) Response-body))
+    (log "URL: " Url-line)
+    (log "Type: " Type)
+    (log "Path: " Path)
+    (log "URL-params: " Url-params)
+    (log "Version: " Version)
+    (for P Header
+      (log "Header: " (car P) ": " (cdr P)))
+    (for P Params
+      (log "Params: " (car P) ": " (cdr P)))
+    (prinl Response-Body)
+    (prinl Response)
+    Response))
 
 (de hello-request-handler (Type Path Header Params)
   (if (= Path "/greeting")
@@ -101,5 +112,5 @@
         "\n"
         Body))
 
-(server hello-request-handler 8080)
+(server http-request-handler 8080)
 (bye)
