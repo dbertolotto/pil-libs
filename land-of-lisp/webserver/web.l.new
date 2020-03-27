@@ -55,6 +55,52 @@
       (NIL (fork) (child-handler Request-handler Port))
       (close Sock))))
 
+(de server2 (Request-handler Port-num)
+  (let (Port (port Port-num))
+    (log "Server listening on port " Port-num)
+    (loop
+      (task (listen Port)
+        (in (setq Sock @)
+          (if (till)
+            (out Sock (Request-handler @)
+            (task Sock)
+            (close Sock))))))))
+
+(de server3 (Port Request-Handler)
+  (let (P (port Port))
+    (log "Server listening on port " Port)
+    (loop
+      (setq Sock (listen P))
+      (NIL (fork) (close P))
+      (close Sock)))
+    # we are in the child here
+    (log "Client connected from " *Adr)
+    (in Sock
+      (until (eof)
+        #(make (link (line T)))
+        #(make (while (poll Sock) (link (line T))))
+        (make (while (line T) (link @)))
+        )
+      (mapc 'log @)
+      (close Sock))
+    (log "Client disconnected")
+    (bye))
+
+(de server4 (Port)
+  (task (port Port)
+    (when (listen @)
+      (task @
+        Sock @
+         (in Sock
+           (make (while (poll Sock) (link (line T))))
+             (mapc prinl @)
+             #(out Sock (eval @))
+             (task Sock)
+             (close Sock) ) ) ) ) )
+
+(de echo-request-handler (L)
+  L)
+
 (de child-handler (Request-handler Port)
   (close Port)
   (log "Client connected from " *Adr)
@@ -111,5 +157,5 @@
         "\n"
         Body))
 
-(server http-request-handler 8080)
-(bye)
+#(server2 http-request-handler 8080)
+#(bye)
