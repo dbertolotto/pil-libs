@@ -1,6 +1,5 @@
-(load "lib/string.l"
-      "lib/util.l")
-(symbols '(pico string util))
+(load "lib/string.l" "lib/util.l" "lib/classutil.l")
+(symbols '(pico string util classutil))
 
 (de decode-char (C1 C2)
   (char (hex (pack C1 C2))))
@@ -42,8 +41,8 @@
 (de get-body (Headers)
   (let (Length (format (cdr (assoc 'content-length Headers))))
     (when Length
-      (pack (make (do Length (link (char))))))))
-      #(pipe (echo Length) (till NIL T)))))
+      #(pack (make (do Length (link (char))))))))
+      (pipe (echo Length) (till NIL T)))))
 
 (class +HttpRequest)
 
@@ -55,47 +54,43 @@
   (=: Headers Headers)
   (=: Body Body))
 
-(dm method> () (: Method))
-(dm url> () (: Url))
-(dm url-params> () (: Url-params))
-(dm version> () (: Version))
-(dm headers> () (: Headers))
-(dm body> () (: Body))
-(dm params> () (append (: Url-params) (:Header)))
+(&get Method Url Url-params Version Headers Body)
+
+(dm params> () (append (: Url-params) (: Headers)))
+
+(dm build> @
+  (let (N (if (next) (arg) "\n"))
+    (pack (: Method) " " (: Url) " " (: Version) N
+          (http-headers (params> This) N)
+          (when (: Body)
+            (pack "content-length: " (length (: Body)) N))
+          N
+          (: Body))))
 
 (class +HttpResponse)
-
-(dm T (Version Status Message Headers Body)
-  (=: Version Version)
-  (=: Status Status)
-  (=: Message Message)
-  (=: Headers Headers)
-  (=: Body Body))
-
-(dm version> () (: Version))
-(dm status> () (: Status))
-(dm message> () (: Message))
-(dm headers> () (: Headers))
-(dm body> () (: Body))
+(&con Version Status Message Headers Body)
+(&get Version Status Message Headers Body)
 
 (dm build> ()
   (pack (: Version) " " (: Status) " " (: Message) "\n"
-        (mapcar '((P) (pack (car P) ": " (cdr P) "\n"      )) (: Headers))
+        (http-headers (: Headers))
         (when (: Body)
-          "content-length: " (length (: Body)))
-        "\n" (: Body)))
+          (pack "content-length: " (length (: Body)) "\n"))
+        "\n"
+        (: Body)))
 
 (de http-reader ()
-  (new '(+HttpRequest) (get-start-line)
-                       (get-headers)
-                       (get-body Header)))
+  (let (Start-line (get-start-line)
+        Headers (get-headers)
+        Body (get-body Headers))
+    (new '(+HttpRequest) Start-line Headers Body)))
 
-(de http-handler (Request)
+(de http-handler-demo (Request)
   (let (Response-params '((content-type . "text/html; charset=utf-8"))
-        Response-body (request-handler-2 Type Url Params Body))
-    (http-response Version 200 'OK Response-params Response-body)))
+        Response-body (request-handler (method> Request) (url> Request) (params> Request) (body> Request)))
+    (build> (new '(+HttpResponse) (version> Request) 200 'OK Response-params Response-body))))
 
-(de request-handler (Type Url Params Body)
+(de request-handler (Method Url Params Body)
   (if (= Url "/greeting")
     (let (Name (assoc 'name Params))
       (if Name
@@ -103,37 +98,14 @@
         "<html><form>What is your name?<input name='name' /></form></html>"))
     "<html>Sorry... I don't know that page.</html>"))
 
-(de http-response (Version Status Message Header Body)
-  (pack Version " " Status " " Message "\n"
-        (mapcar '((P) (pack (car P) ": " (cdr P) "\n")) Header)
-        "\n"
-        Body))
+(de http-handler-echo (Request)
+  (let (Response-params '((content-type . "text/html; charset=utf-8"))
+        Response-body (pack "<html>" (build> Request "<br>") "</html>"))
+    (build> (new '(+HttpResponse) (version> Request) 200 'OK Response-params Response-body))))
 
-(de request-handler-2 (Type Url Params Body)
-  (pack "<html>"
-        (glue "<br>" (list Type
-                           Url
-                           (mapcar '((P) (pack (car P) ": " (cdr P) "<br>")) Params)
-                           Body))
-        "</html>"))
-
-(de http-headers (Lst . Newline)
-  (let (N (if Newline Newline "\n"))
-    (mapcan '((P) (pack (car P) ": " (cdr P) N)) Lst)))
-
-(de reader ()
-  (mapcar pack (split
-  (make (do 500
-            (let (C (char))
-              (! link C))
-            (NIL (peek) NIL)
-            ))
-  "\n")))
-
-(de handler (S)
-  (let (Body (pack "<html>" S "</html>")
-        Headers (http-headers (list (cons 'content-length (length Body)))))
-    (http-response "HTTP/1.1" 200 'OK Headers Body)))
+(de http-headers (Lst . @)
+  (let (N (if (next) (arg) "\n"))
+    (mapcar '((P) (pack (car P) ": " (cdr P) N)) Lst)))
 
 (de server (P)
   (task (port P)
@@ -146,15 +118,7 @@
                (task Sock)
                (close Sock))))))
 
-(setq *handler http-handler)
+(setq *handler http-handler-echo)
 (setq *reader http-reader)
 (server 8080)
 
-#(setq *handler handler)
-#(setq *reader reader)
-#(server 8080)
-
-#(let (S (listen (port 8080))) (in S (do 250 (NIL (peek) NIL) (let (C (char)) (prinl C)))))
-
-#(in S (make (do 250 (NIL (peek) NIL) (let (C (char)) (prinl C) (link C)))))
-#(setq P (port 8080)) (let (S (listen P) Body (in S (make (do 200 (link (char)) (NIL (peek) NIL))))))
