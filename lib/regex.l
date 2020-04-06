@@ -1,3 +1,20 @@
+### Globals
+
+# max number of subexpression matches
+(setq *Nmatch 10)
+
+# cflags settings T/NIL
+(setq
+  *Extended T
+  *Icase NIL
+  *Newline NIL
+  *Nosub NIL)
+
+# eflags settings T/NIL
+(setq
+  *Bol T
+  *Eol T)
+
 ### Cflags
 
 # If this bit is set, then use extended regular expression syntax.
@@ -16,6 +33,12 @@
 # If not set, then returns differ between not matching and errors.
 (setq REG_NOSUB (>> -1 REG_NEWLINE))
 
+(de build-cflags ()
+  (| (if *Extended REG_EXTENDED 0)
+     (if *Icase REG_ICASE 0)
+     (if *Newline REG_NEWLINE 0)
+     (if Nosub REG_NOSUB 0)))
+
 ### Eflags
 
 # If this bit is set, then the beginning-of-line operator doesn't match the beginning of the string (presumably because it's not the beginning of a line).
@@ -25,39 +48,16 @@
 # Like REG_NOTBOL, except for the end-of-line.
 (setq REG_NOTEOL (>> -1 REG_NOTBOL))
 
-### Error codes
-
-# Success.
-(setq REG_NOERROR 0)
-# Didn't find a match (for regexec).
-(setq REG_NOMATCH 1)
-
-# POSIX regcomp return error codes.
-# (In the order listed in the standard.)
-(setq REG_BADPAT 2) # Invalid pattern.
-(setq REG_ECOLLATE 3) # Not implemented.
-(setq REG_ECTYPE 4) # Invalid character class name.
-(setq REG_EESCAPE 5) # Trailing backslash.
-(setq REG_ESUBREG 6) # Invalid back reference.
-(setq REG_EBRACK 7) # Unmatched left bracket.
-(setq REG_EPAREN 8) # Parenthesis imbalance.
-(setq REG_EBRACE 9) # Unmatched \{.
-(setq REG_BADBR 10) # Invalid contents of \{\}.
-(setq REG_ERANGE 11) # Invalid range end.
-(setq REG_ESPACE 12) # Ran out of memory.
-(setq REG_BADRPT 13) # No preceding re for repetition op.
-
-# Error codes we've added.
-(setq REG_EEND 14) # Premature end.
-(setq REG_ESIZE 15) # Compiled pattern bigger than 2^16 bytes.
-(setq REG_ERPAREN 16) # Unmatched ) or \); not returned from regcomp.
+(de build-eflags ()
+  (| (if *Bol 0 REG_NOTBOL)
+     (if *Eol 0 REG_NOTEOL)))
 
 ### Native calls
 
 # compile regex
-(de regcomp (Pattern . @)
+(de regcomp (Pattern)
   (use Preg
-    (let (Errcode (native "@" "regcomp" 'I '(Preg (64 B . 64) 0 ) Pattern (pass | 0)))
+    (let (Errcode (native "@" "regcomp" 'I '(Preg (64 B . 64) 0) Pattern (build-cflags)))
       (cons Preg Errcode))))
 
 # match regex
@@ -65,17 +65,10 @@
   (when (> Nmatch 0)
     (list 'Pmatch (cons Nmatch '(N N) Nmatch) 0)))
 
-(de extract-matches (String Pmatch)
-  (mapcar '((M) (let (S (chop String)
-                      B (car M)
-                      E (cadr M))
-                  (pack (tail (- E B) (head E S)))))
-          (filter '((M) (not (= (car M) -1))) Pmatch)))
-
-(de regexec (Preg String Nmatch Eflags)
+(de regexec (Preg String)
   (use Pmatch
-    (let (Errcode (native "@" "regexec" 'I (cons NIL (64) Preg) String Nmatch (build-pmatch Nmatch) Eflags))
-      (cons (extract-matches String Pmatch) Errcode))))
+    (let (Errcode (native "@" "regexec" 'I (cons NIL (64) Preg) String *Nmatch (build-pmatch *Nmatch) (build-eflags)))
+      (cons Pmatch Errcode))))
 
 # free mem
 (de regfree (Preg)
@@ -87,57 +80,41 @@
     (let (Length (native "@" "regerror" 'I ErrCode (cons NIL (64) Preg) (cons 'Buf (64 C . 64) 0) Size))
       (cons Buf Length))))
 
-### Tests
+### Helpers
 
-#(let (P "a" S "a" Preg (regcomp P))
-#  (regexec Preg S 0 0 0)
-#  (regfree Preg))
+(de handle-error (Preg Errcode Ident)
+  (when (> Errcode 0)
+    (let (Size (cdr (regerror Errcode Preg 0))
+          Msg (pack (car (regerror Errcode Preg Size))))
+     (regfree Preg)
+     (prinl "Regex " Ident " error [" Errcode "]: " Msg)
+     NIL)))
 
-#(let (P "a" S "a" Preg (regcomp P))
-#  (test REG_NOERROR (regexec Preg S 0 0 0)))
-#(let (P "a" S "A" Preg (regcomp P))
-#  (test REG_NOMATCH (regexec Preg S 0 0 0)))
-#(let (P "a" S "A" Preg (regcomp P REG_ICASE))
-#  (test REG_NOERROR (regexec Preg S 0 0 0)))
-#(let (P "a[0-9]z" S "a7z" Preg (regcomp P))
-#  (test REG_NOERROR (regexec Preg S 0 0 0)))
-#(let (P "a[0-9z" S "a7z" Preg (regcomp P))
-#  (test REG_BADPAT (regexec Preg S 0 0 0))
-#  (regerror REG_BADPAT Preg 100))
-#(let (P "a[0-9z" S "a7z" Preg (regcomp P))
-#  (test REG_BADPAT (regexec Preg S 0 0 0)))
-#(let (P "a\\" S "a" Preg (regcomp P))
-#  (test REG_EESCAPE (regexec Preg S 0 0 0)))
+(de extract-matches (String Pmatch)
+  (mapcar '((M) (let (S (chop String)
+                      B (car M)
+                      E (cadr M))
+                  (pack (tail (- E B) (head E S)))))
+          (filter '((M) (not (= (car M) -1))) Pmatch)))
 
 ### Wrappers
 
-(de handle-error (Preg Errcode)
-  (let (Size (cdr (regerror Errcode Preg 0))
-        Msg (pack (car (regerror Errcode Preg Size))))
-   (regfree Preg)
-   (prinl "Regex error [" Errcode "]: " Msg)
-   NIL))
-
-(de re-compile (Pattern . @)
-  (let (Res (pass 'regcomp Pattern)
-        Preg (car Res)
-        Errcode (cdr Res))
-    (if (> Errcode 0)
-      (handle-error Preg Errcode)
-      Preg)))
+(de re-compile (Pattern)
+  (let ((Preg . Errcode) (regcomp Pattern))
+    (case Errcode
+      (0 Preg)
+      (T (handle-error Preg Errcode "compile")))))
 
 (de re-match (Preg String)
-  (let (Res (regexec Preg String 15 0)
-        Matches (car Res)
-        Errcode (cdr Res))
-    (! if (> Errcode 0)
-      (handle-error Preg Errcode)
-      (if Matches Matches T))))
+  (let ((Pmatch . Errcode) (regexec Preg String))
+    (case Errcode
+      (0 (if (extract-matches String Pmatch) @ T))
+      (1 NIL)
+      (T (handle-error Preg Errcode "match")))))
 
-(de re-find (Pattern String . @)
-  (let (Preg (pass 're-compile Pattern))
-    (when Preg
-      (re-match Preg String))))
+(de re-find (Pattern String)
+  (when (re-compile Pattern)
+    (re-match @ String)))
 
 ### Tests
 
@@ -151,4 +128,5 @@
 #(test T (re-find "\\[c\\]" "a[c]b" REG_EXTENDED))
 #(test T (re-find "[c]" "a[c]b" REG_EXTENDED))
 #(test T (re-find "(aa)" "faazbaaz" REG_EXTENDED))
-(test T (re-find "(al).*(a)" "talpa" REG_EXTENDED))
+(test '("alpa" "al" "a") (re-find "(al).*(a)" "talpa"))
+(test '("faazbaaz" "aa" "aa") (re-find "f([a]+).*(aa)z" "faazbaaz"))
