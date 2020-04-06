@@ -57,12 +57,25 @@
 # compile regex
 (de regcomp (Pattern . @)
   (use Preg
-    (let (Errcode (native "@" "regcomp" 'I '(Preg (64 B . 64)) Pattern (pass | 0)))
+    (let (Errcode (native "@" "regcomp" 'I '(Preg (64 B . 64) 0 ) Pattern (pass | 0)))
       (cons Preg Errcode))))
 
 # match regex
-(de regexec (Preg String Nmatch Pmatch Eflags)
-  (native "@" "regexec" 'I (cons NIL (64) Preg) String Nmatch Pmatch Eflags))
+(de build-pmatch (Nmatch)
+  (when (> Nmatch 0)
+    (list 'Pmatch (cons Nmatch '(N N) Nmatch) 0)))
+
+(de extract-matches (String Pmatch)
+  (mapcar '((M) (let (S (chop String)
+                      B (car M)
+                      E (cadr M))
+                  (pack (tail (- E B) (head E S)))))
+          (filter '((M) (not (= (car M) -1))) Pmatch)))
+
+(de regexec (Preg String Nmatch Eflags)
+  (use Pmatch
+    (let (Errcode (native "@" "regexec" 'I (cons NIL (64) Preg) String Nmatch (build-pmatch Nmatch) Eflags))
+      (cons (extract-matches String Pmatch) Errcode))))
 
 # free mem
 (de regfree (Preg)
@@ -114,10 +127,12 @@
       Preg)))
 
 (de re-match (Preg String)
-  (let (Errcode (regexec Preg String 0 0 0))
-    (if (> Errcode 0)
+  (let (Res (regexec Preg String 15 0)
+        Matches (car Res)
+        Errcode (cdr Res))
+    (! if (> Errcode 0)
       (handle-error Preg Errcode)
-      T)))
+      (if Matches Matches T))))
 
 (de re-find (Pattern String . @)
   (let (Preg (pass 're-compile Pattern))
@@ -126,7 +141,14 @@
 
 ### Tests
 
-(test NIL (re-find "a[0-9z" "a7z"))
-(test T (re-find "a[0-9]z" "a7z"))
-(test NIL (re-find "a" "A"))
-(test T (re-find "a" "A" REG_ICASE))
+#(test NIL (re-find "a[0-9z" "a7z"))
+#(test T (re-find "a[0-9]z" "a7z"))
+#(test NIL (re-find "a" "A"))
+#(test T (re-find "a" "A" REG_ICASE))
+#(test T (re-find "\\(aa\\)" "baah"))
+#(test T (re-find "(aa)" "baah" REG_EXTENDED))
+#(test T (re-find "\\[\\]" "a[]b" REG_EXTENDED))
+#(test T (re-find "\\[c\\]" "a[c]b" REG_EXTENDED))
+#(test T (re-find "[c]" "a[c]b" REG_EXTENDED))
+#(test T (re-find "(aa)" "faazbaaz" REG_EXTENDED))
+(test T (re-find "(al).*(a)" "talpa" REG_EXTENDED))
