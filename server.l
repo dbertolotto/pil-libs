@@ -1,8 +1,13 @@
 (load "lib/string.l" "lib/util.l" "lib/classutil.l")
 (symbols '(pico string util classutil))
 
+(setq *Unreserved "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~")
+
 (de decode-char (C1 C2)
   (char (hex (pack C1 C2))))
+
+(de encode-char (C)
+  (hex (char C)))
 
 (de decode-param (S)
   (pack
@@ -14,6 +19,14 @@
               ("%" (decode-char (pop 'L) (pop 'L)))
               ("+" " ")
               (T C))))))))
+
+(de url-encode (S)
+  (let (Unres (chop *Unreserved))
+    (pack
+      (mapcar '((C) (if (member C Unres)
+                      C
+                      (pack "%" (encode-char C))))
+              (chop S)))))
 
 (de parse-param (S)
   (let (Pair (splits S "="))
