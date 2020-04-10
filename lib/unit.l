@@ -1,4 +1,5 @@
 ### Unit test library
+(local) '(detest check combine-results)
 
 (setq *TestName NIL)
 
@@ -21,20 +22,3 @@
         (let *TestName (append *TestName (list '@Name))
           ~'@Body)))))
 
-(detest test-+ ()
-  (check
-    (= (+ 1 2) 3)
-    (= (+ 1 2 3) 6)
-    (= (+ -1 -3) -5)))
-
-(detest test-* ()
-  (check
-    (= (* 2 2) 4)
-    (= (* 3 5) 15)))
-
-(detest test-arithmetic ()
-  (combine-results
-    (test-+)
-    (test-*)))
-
-(test-arithmetic)

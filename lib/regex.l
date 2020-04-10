@@ -1,3 +1,6 @@
+### Regex library
+(local) '(re-compile re-execute re-match)
+
 ### Globals
 
 # max number of subexpression matches
@@ -63,7 +66,7 @@
 # match regex
 (de build-pmatch (Nmatch)
   (when (> Nmatch 0)
-    (list 'Pmatch (cons Nmatch '(N N) Nmatch) 0)))
+    (list 'Pmatch (cons Nmatch '(I . 2) Nmatch) 0)))
 
 (de regexec (Preg String)
   (use Pmatch
@@ -116,17 +119,3 @@
   (when (re-compile Pattern)
     (re-execute @ String)))
 
-### Tests
-
-#(test NIL (re-match "a[0-9z" "a7z"))
-#(test T (re-match "a[0-9]z" "a7z"))
-#(test NIL (re-match "a" "A"))
-#(test T (re-match "a" "A" REG_ICASE))
-#(test T (re-match "\\(aa\\)" "baah"))
-#(test T (re-match "(aa)" "baah" REG_EXTENDED))
-#(test T (re-match "\\[\\]" "a[]b" REG_EXTENDED))
-#(test T (re-match "\\[c\\]" "a[c]b" REG_EXTENDED))
-#(test T (re-match "[c]" "a[c]b" REG_EXTENDED))
-#(test T (re-match "(aa)" "faazbaaz" REG_EXTENDED))
-(test '("alpa" "al" "a") (re-match "(al).*(a)" "talpa"))
-(test '("faazbaaz" "aa" "aa") (re-match "f([a]+).*(aa)z" "faazbaaz"))
