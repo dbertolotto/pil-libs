@@ -66,7 +66,7 @@
 # match regex
 (de build-pmatch (Nmatch)
   (when (> Nmatch 0)
-    (list 'Pmatch (cons Nmatch '(I . 2) Nmatch) 0)))
+    (list 'Pmatch (cons Nmatch '(I . 2) Nmatch) 0))) # on termux had to change I to N
 
 (de regexec (Preg String)
   (use Pmatch
