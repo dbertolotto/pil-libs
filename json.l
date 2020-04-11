@@ -1,57 +1,111 @@
-(local) '(checkJson readJson printJson readJsonStr)
+(local) '(read-json print-json readJsonStr)
 
-(de checkJson (X Item)
-   (unless (= X Item)
-      (quit "Bad JSON" Item) ) )
- 
-(de readJson ()
-   (case (read "_")
-      ("{"
-         (make
-            (for (X (readJson)  (not (= "}" X))  (readJson))
-               (checkJson ":" (readJson))
-               (link (cons X (readJson)))
-               (T (= "}" (setq X (readJson))))
-               (checkJson "," X) ) ) )
-      ("["
-         (make
-            (link T)  # Array marker
-            (for (X (readJson)  (not (= "]" X))  (readJson))
-               (link X)
-               (T (= "]" (setq X (readJson))))
-               (checkJson "," X) ) ) )
-      (T
-         (let X @
-            (cond
-               ((pair X) (pack X))
-               ((and (= "-" X) (format (peek)))
-                  (- (read)) )
-               (T X) ) ) ) ) )
- 
-(de printJson (Item)  # For simplicity, without indentation
-   (cond
-      ((atom Item) (if Item (print @) (prin "{}")))
+(setq *Indent 2)
+(setq *Pretty NIL)
+
+(de check-json (X Item)
+  (unless (= X Item)
+    (quit 'JsonParsingException
+          (pack "Bad JSON token: '" Item
+                "' - expected '" X "'"))))
+
+(de read-json ()
+  (case (read "_")
+    ("{"
+      (make
+        (for (X (read-json) (not (= "}" X)) (read-json))
+          (check-json ":" (read-json))
+          (link (cons X (read-json)))
+          (T (= "}" (setq X (read-json))))
+          (check-json "," X))))
+    ("["
+      (make
+        (link T) # Array marker
+        (for (X (read-json) (not (= "]" X)) (read-json))
+          (link X)
+          (T (= "]" (setq X (read-json))))
+          (check-json "," X))))
+    (T
+      (let X @
+        (cond
+          ((pair X) (pack X))
+          ((and (= "-" X) (format (peek))) (read-exp (read) T))
+          ((and (= "+" X) (format (peek))) (read-exp (read)))
+          ((format X) (read-exp X))
+          (T X))))))
+
+(de read-exp (X Neg)
+  (let (Exp (when (= "e" (lowc (peek)))
+              (char)
+              (let E (read "_")
+                (cond
+                  ((and (= "-" E) (format (peek))) (- (read)))
+                  ((and (= "+" E) (format (peek))) (read))
+                  ((format E) E)
+                  (T (handle-error)))))
+        Num (if Exp (apply-exp X Exp) X))
+    (if Neg (- Num) Num)))
+
+(de apply-exp (X Exp)
+  (let (Fact (apply * (need (abs Exp) 10)))
+    (cond
+      ((> Exp 0) (* X Fact))
+      ((= Exp 0) X)
+      ((< Exp 0) (/ X Fact)))))
+
+(de print-json (Item Indent)
+  (let (IndStr (when *Pretty (pack (need Indent " ")))
+        NewInd (+ Indent *Indent)
+        NewIndStr (when *Pretty (pack (need NewInd " ")))
+        Newline (when *Pretty "\n"))
+    (cond
+      ((atom Item)
+        (if Item
+          (prog
+            (prin NewIndStr)
+            (print Item))
+          (prin "{}")))
       ((=T (car Item))
-         (prin "[")
-         (map
-            '((X)
-               (printJson (car X))
-               (and (cdr X) (prin ", ")) )
-            (cdr Item) )
-         (prin "]") )
+        (prin "[" Newline)
+        (map '((X)
+                (print-json (car X) Indent)
+                (and (cdr X) (prin ", " Newline)))
+             (cdr Item))
+        (prin Newline IndStr "]"))
       (T
-         (prin "{")
-         (map
-            '((X)
-               (print (caar X))
-               (prin ": ")
-               (printJson (cdar X))
-               (and (cdr X) (prin ", ")) )
-            Item )
-         (prin "}") ) ) )
+        (prin "{" Newline)
+        (map '((X)
+                (prin NewIndStr)
+                (print (caar X))
+                (prin ": ")
+                (print-json (cdar X) NewInd)
+                (and (cdr X) (prin ", " Newline)))
+             Item)
+        (prin Newline IndStr "}")))))
+
+(de print-json (Item)
+  (let *Pretty NIL (print-json Item NIL)))
+
+(de pprint-json (Item)
+  (let *Pretty T (print-json Item 0)))
+
+(de pretty-print (String)
+  (let (S (chop String)
+        Ind 0)
+    (pack
+    (make
+      (for C S
+        (case C
+          ("," (link C "\n" (need Ind " ")))
+          ("{" ((setq Ind (+ Ind *Indent))
+                (link C "\n" (need Ind " "))))
+          ("}" ((setq Ind (- Ind *Indent))
+                (link C "\n" (need Ind " "))))
+          (T (link C))))))))
+
 
 (de readJsonStr (S)
-  (pipe (prinl S) (readJson)))
+  (pipe (prinl S) (read-json)))
 
 #----------
 
@@ -75,3 +129,6 @@
 
 (de jvals (J)
   (mapcar 'cdr J))
+
+### Tests
+

@@ -1,6 +1,7 @@
 (load "lib/string.l" "lib/util.l" "lib/classutil.l")
 (symbols '(pico string util classutil))
 
+# Unreserved URL characters
 (setq *Unreserved "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~")
 
 (de decode-char (C1 C2)
@@ -98,6 +99,23 @@
         Body (get-body Headers))
     (new '(+HttpRequest) Start-line Headers Body)))
 
+(de http-headers (Lst . @)
+  (let (N (if (next) (arg) "\n"))
+    (mapcar '((P) (pack (car P) ": " (cdr P) N)) Lst)))
+
+(de server (P)
+  (task (port P)
+    (when (accept @)
+      (task @
+            Sock @
+            (in Sock
+              (out Sock (prinl (*handler (*reader))))
+              (prinl "Close task & sock " Sock)
+              (task Sock)
+              (close Sock))))))
+
+### Other stuff
+
 (de http-handler-demo (Request)
   (let (Response-params '((content-type . "text/html; charset=utf-8"))
         Response-body (request-handler (method> Request) (url> Request) (params> Request) (body> Request)))
@@ -111,27 +129,15 @@
         "<html><form>What is your name?<input name='name' /></form></html>"))
     "<html>Sorry... I don't know that page.</html>"))
 
+### simple echo handler
+
 (de http-handler-echo (Request)
   (let (Response-params '((content-type . "text/html; charset=utf-8"))
         Response-body (pack "<html>" (build> Request "<br>") "</html>"))
     (build> (new '(+HttpResponse) (version> Request) 200 'OK Response-params Response-body))))
 
-(de http-headers (Lst . @)
-  (let (N (if (next) (arg) "\n"))
-    (mapcar '((P) (pack (car P) ": " (cdr P) N)) Lst)))
-
-(de server (P)
-  (task (port P)
-    (when (accept @)
-      (task @
-            Sock @
-            (in Sock
-               (out Sock (prinl (*handler (*reader))))
-               (prinl "Close task & sock " Sock)
-               (task Sock)
-               (close Sock))))))
+### start server
 
 (setq *handler http-handler-echo)
 (setq *reader http-reader)
 (server 8080)
-
