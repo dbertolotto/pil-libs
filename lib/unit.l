@@ -1,10 +1,35 @@
 ### Unit test library
 (local) '(detest check combine-results)
 
+(setq *ColorRes T)
 (setq *TestName NIL)
 
+(de color (Fun Color . @)
+  (when *ColorRes (call "tput" "setaf" Color))
+  (pass Fun)
+  (when *ColorRes (call "tput" "sgr0")))
+
+(de prin-color (Color . @)
+  (pass color 'prin Color))
+
+(de prin-green @
+  (pass prin-color "2"))
+
+(de prin-red @
+  (pass prin-color "1"))
+
+(de print-color (Color . @)
+  (pass color 'print Color))
+
+(de print-yellow @
+  (pass print-color "3"))
+
 (de report-result (Res Form)
-  (println (if Res 'pass 'FAIL) '... *TestName ': Form)
+  (if Res (prin-green "pass") (prin-red "Fail"))
+  (prin " ... ")
+  (print-yellow *TestName)
+  (prin " : ")
+  (println Form)
   Res)
 
 (de combine-results @
