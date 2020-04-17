@@ -3,6 +3,35 @@
 (setq *Digits (mapcar format (range 0 9)))
 (setq *Whitespace (chop " \t\n\r"))
 
+(class +PSuc)
+(dm T (Val RestInp)
+  (=: Val Val)
+  (=: RestInp RestInp))
+(dm str> ()
+  (text "@1" (: Val)))
+
+(class +PFail)
+(dm T (Label Err)
+  (=: Label Label)
+  (=: Err Err))
+(dm str> ()
+  (text "Error parsing @1\n@2" (: Label) (: Err)))
+
+(de satisfy (@Pred @Label)
+  (fill '((Inp)
+    (if (= Inp NIL)
+      (new +PFail @Label "No more input")
+        (let First (car Inp)
+          (if ('@Pred First)
+            (new +PSuc First (cdr Inp))
+            (new +PFail @Label (text "Unexpected '@1'" First))))))))
+
+(de pchar3 (@Char)
+  (satisfy (fill '((First) (= First @Char))) (text "@1" @Char)))
+
+(def 'digit (satisfy '((X) (member X *Digits)) "digit"))
+(def 'ws (satisfy '((X) (member X *Whitespace)) "whitespace"))
+
 (de pchar (Char Chars)
   (let C (car Chars)
     (cond

@@ -21,6 +21,16 @@
       (= '(NIL "Expecting 'A'. Got 'B'" . ("B" "C" "D")) (parse-A (chop "BCD")))
       )))
 
+(detest t-pchar3 ()
+  (let parse-A (pchar3 "A")
+    (check
+      (= '(NIL "No more input" . NIL) (parse-A '("")))
+      (= '(NIL "No more input" . NIL) (parse-A '(NIL)))
+      (= '(("A") . ("B" "C")) (parse-A (chop "ABC")))
+      (= '(("Z") . ("B" "C")) ((pchar3 "Z") (chop "ZBC")))
+      (= '(NIL "Expecting 'A'. Got 'B'" . ("B" "C" "D")) (parse-A (chop "BCD")))
+      )))
+
 (detest t-and-p ()
   (let (parse-A (pchar2 "A")
         parse-B (pchar2 "B")
@@ -191,6 +201,7 @@
   (combine-results
     (t-pchar)
     (t-pchar2)
+    (t-pchar3)
     (t-and-p)
     (t-or-p)
     (t-and-or)
