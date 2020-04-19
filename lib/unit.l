@@ -25,7 +25,7 @@
   (pass print-color "3"))
 
 (de report-result (Res Form)
-  (if Res (prin-green "pass") (prin-red "Fail"))
+  (if Res (prin-green "pass") (prin-red "FAIL"))
   (prin " ... ")
   (print-yellow *TestName)
   (prin " : ")
