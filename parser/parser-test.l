@@ -161,11 +161,11 @@
 (detest t-any-of2 ()
   (let (parse-any-of (any-of2 "A" "B" "C"))
     (check
-      (= '"A" (get (parse-any-of (chop "AZZ")) 'Val))
-      (= '"B" (get (parse-any-of (chop "BZZ")) 'Val))
-      (= '"C" (get (parse-any-of (chop "CZZ")) 'Val))
-      (= '"a" (get (parse-lowc2 (chop "aBC")) 'Val))
-      (= '"9" (get (parse-digit2 (chop "9BC")) 'Val))
+      (= "A" (get (parse-any-of (chop "AZZ")) 'Val))
+      (= "B" (get (parse-any-of (chop "BZZ")) 'Val))
+      (= "C" (get (parse-any-of (chop "CZZ")) 'Val))
+      (= "a" (get (parse-lowc2 (chop "aBC")) 'Val))
+      (= "9" (get (parse-digit2 (chop "9BC")) 'Val))
       )))
 
 (detest t-all-of ()
@@ -238,6 +238,16 @@
       (= '(("\r") . ("A" "B" "C")) (many-ws (chop "\rABC")))
       )))
 
+(detest t-many-32 ()
+  (let many-ws (many2 'parse-ws2)
+    (check
+      (= '() (get (many-ws (chop "ABC")) 'Val))
+      (= '(" ") (get (many-ws (chop " ABC")) 'Val))
+      (= '("\t") (get (many-ws (chop "\tABC")) 'Val))
+      (= '("\n") (get (many-ws (chop "\nABC")) 'Val))
+      (= '("\r") (get (many-ws (chop "\rABC")) 'Val))
+      )))
+
 (detest t-many-4 ()
   (let m-digit+ (many+ 'parse-digit)
     (check
@@ -246,6 +256,16 @@
       (= '(("1" "2" "3") . ("C")) (m-digit+ (chop "123C")))
       (= '(("1" "2" "3" "4") . ()) (m-digit+ (chop "1234")))
       (= '(NIL "Expecting '9'. Got 'A'" . ("A" "B" "C")) (m-digit+ (chop "ABC")))
+      )))
+
+(detest t-many-42 ()
+  (let m-digit+ (many2+ 'parse-digit2)
+    (check
+      (= '("1") (get (m-digit+ (chop "1ABC")) 'Val))
+      (= '("1" "2") (get (m-digit+ (chop "12BC")) 'Val))
+      (= '("1" "2" "3") (get (m-digit+ (chop "123C")) 'Val))
+      (= '("1" "2" "3" "4") (get (m-digit+ (chop "1234")) 'Val))
+      (= "Unexpected 'A'" (get (m-digit+ (chop "ABC")) 'Err))
       )))
 
 (detest t-many-5 ()
@@ -257,6 +277,15 @@
     (= '(NIL "Expecting '9'. Got 'A'" . ("A" "B" "C")) (pint (chop "ABC")))
     ))
 
+(detest t-many-52 ()
+  (check
+    (= '1 (get (pint3 (chop "1ABC")) 'Val))
+    (= '12 (get (pint3 (chop "12BC")) 'Val))
+    (= '123 (get (pint3 (chop "123C")) 'Val))
+    (= '1234 (get (pint3 (chop "1234")) 'Val))
+    (= "Unexpected 'A'" (get (pint3 (chop "ABC")) 'Err))
+    ))
+
 (detest t-opt ()
   (let digit-then-comma (sequence 'parse-digit (opt (pchar2 ",")))
     (check
@@ -264,6 +293,15 @@
       (= '(("1" NIL) . NIL) (digit-then-comma (chop "1")))
       (= '((123) . ("C")) (pint2 (chop "123C")))
       (= '((-123) . ("C")) (pint2 (chop "-123C")))
+      )))
+
+(detest t-opt2 ()
+  (let digit-then-comma (sequence2 'parse-digit2 (opt2 (pchar3 ",")))
+    (check
+      (= '("1" ",") (get (digit-then-comma (chop "1,")) 'Val))
+      (= '("1" NIL) (get (! digit-then-comma (chop "1")) 'Val))
+      (= '123 (get (! pint4 (chop "123C")) 'Val))
+      (= '-123 (get (pint4 (chop "-123C")) 'Val))
       )))
 
 (detest t-drop ()
@@ -321,9 +359,13 @@
     (t-many-2)
     (t-many-22)
     (t-many-3)
+    (t-many-32)
     (t-many-4)
+    (t-many-42)
     (t-many-5)
+    (t-many-52)
     (t-opt)
+    (t-opt2)
     (t-drop)
     (t-between)
     (t-sep-by)

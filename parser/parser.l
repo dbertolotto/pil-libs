@@ -217,9 +217,9 @@
   (fill
     '((Chars)
       (let Res1 ('@P Chars)
-        (if (isa '+PFail Res)
-          Res
-          (let (Res2 (parse-zero-or-more2 P (get Res1 'RestInp))
+        (if (isa '+PFail Res1)
+          Res1
+          (let (Res2 (parse-zero-or-more2 '@P (get Res1 'RestInp))
                 V1 (get Res1 'Val)
                 V2 (get Res2 'Val))
             (new '(+PSuc)
@@ -227,14 +227,27 @@
                          (if (and V2 (atom V2)) (list V2) V2))
                  (get Res2 'RestInp))))))))
 
+(def 'pint3 (map-p2 'format (map-p2 'pack (many2+ 'parse-digit2))))
+
 (de opt (@Parser)
-  (fill '((Chars)
-          (let Res ('@Parser Chars)
-            (if (car Res)
-              Res
-              ((return-p NIL) Chars))))))
+  (fill
+    '((Chars)
+      (let Res ('@Parser Chars)
+        (if (car Res)
+          Res
+          ((return-p NIL) Chars))))))
+
+(de opt2 (@P)
+  (fill
+    '((Chars)
+      (let Res ('@P Chars)
+        (if (isa '+PSuc Res)
+          Res
+          ((return-p2 NIL) Chars))))))
 
 (def 'pint2 (map-p 'format (map-p 'pack (sequence (opt (pchar2 "-")) (many+ 'parse-digit)))))
+
+(def 'pint4 (map-p2 'format (map-p2 'pack (sequence2 (opt2 (pchar3 "-")) (many2+ 'parse-digit2)))))
 
 (de and-p-drop-left (P1 P2)
   (map-p 'cadr (and-p P1 P2)))
