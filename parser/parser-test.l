@@ -50,6 +50,19 @@
       (= '(("A" "B") . ("C")) (parse-A-then-B (chop "ABC")))
       )))
 
+(detest t-and-p2 ()
+  (let (parse-A (pchar3 "A")
+        parse-B (pchar3 "B")
+        parse-A-then-B (and-p2 'parse-A 'parse-B)
+        ABC (chop "ABC"))
+    (check
+      (isa '+PFail (parse-A-then-B '()))
+      (= "No more input" (get (parse-A-then-B '()) 'Err))
+      (isa '+PSuc (parse-A-then-B ABC))
+      (= '("A" "B") (get (parse-A-then-B ABC) 'Val))
+      (= '("C") (get (parse-A-then-B ABC) 'RestInp))
+      )))
+
 (detest t-or-p ()
   (let (parse-A (pchar2 "A")
         parse-B (pchar2 "B")
@@ -58,6 +71,23 @@
       (= '(("A") . ("Z" "Z")) (parse-A-else-B (chop "AZZ")))
       (= '(("B") . ("Z" "Z")) (parse-A-else-B (chop "BZZ")))
       (= '(NIL "Expecting 'B'. Got 'C'" . ("C" "Z" "Z")) (parse-A-else-B (chop "CZZ")))
+      )))
+
+(detest t-or-p2 ()
+  (let (parse-A (pchar3 "A")
+        parse-B (pchar3 "B")
+        parse-A-else-B (or-p2 'parse-A 'parse-B)
+        AZZ (chop "AZZ")
+        BZZ (chop "BZZ")
+        CZZ (chop "CZZ"))
+    (check
+      (isa '+PSuc (parse-A-else-B AZZ))
+      (= "A" (get (parse-A-else-B AZZ) 'Val))
+      (= '("Z" "Z") (get (parse-A-else-B AZZ) 'RestInp))
+      (isa '+PSuc (parse-A-else-B BZZ))
+      (= "B" (get (parse-A-else-B BZZ) 'Val))
+      (isa '+PFail (parse-A-else-B CZZ))
+      (= "Unexpected 'C'" (get (parse-A-else-B CZZ) 'Err))
       )))
 
 (detest t-and-or ()
@@ -73,6 +103,21 @@
       (= '(NIL "Expecting 'C'. Got 'Q'" . ("Q" "Z")) (parse-A-then-B-or-C (chop "AQZ")))
       )))
 
+(detest t-and-or2 ()
+  (let (parse-A (pchar3 "A")
+        parse-B (pchar3 "B")
+        parse-C (pchar3 "C")
+        parse-B-else-C (or-p2 'parse-B 'parse-C)
+        parse-A-then-B-or-C (and-p2 'parse-A 'parse-B-else-C))
+    (check
+      (= '("A" "B") (get (parse-A-then-B-or-C (chop "ABZ")) 'Val))
+      (= '("Z") (get (parse-A-then-B-or-C (chop "ABZ")) 'RestInp))
+      (= '("A" "C") (get (parse-A-then-B-or-C (chop "ACZ")) 'Val))
+      (= '("Z") (get (parse-A-then-B-or-C (chop "ACZ")) 'RestInp))
+      (= "Unexpected 'Q'" (get (parse-A-then-B-or-C (chop "QBZ")) 'Err))
+      (= "Unexpected 'Q'" (get (parse-A-then-B-or-C (chop "AQZ")) 'Err))
+      )))
+
 (detest t-choice ()
   (let (parse-A (pchar2 "A")
         parse-B (pchar2 "B")
@@ -83,6 +128,18 @@
       (= '(("B") . ("Z" "Z")) (parse-choice (chop "BZZ")))
       (= '(("C") . ("Z" "Z")) (parse-choice (chop "CZZ")))
       (= '(NIL "Expecting 'C'. Got 'Q'" . ("Q" "Z" "Z")) (parse-choice (chop "QZZ")))
+      )))
+
+(detest t-choice2 ()
+  (let (parse-A (pchar3 "A")
+        parse-B (pchar3 "B")
+        parse-C (pchar3 "C")
+        parse-choice (choice2 'parse-A 'parse-B 'parse-C))
+    (check
+      (= '"A" (get (parse-choice (chop "AZZ")) 'Val))
+      (= '"B" (get (parse-choice (chop "BZZ")) 'Val))
+      (= '"C" (get (parse-choice (chop "CZZ")) 'Val))
+      (= '"Unexpected 'Q'" (get (parse-choice (chop "QZZ")) 'Err))
       )))
 
 (detest t-any-of ()
@@ -99,6 +156,16 @@
       (= '(("1") . ("B" "C")) (parse-digit (chop "1BC")))
       (= '(("9") . ("B" "C")) (parse-digit (chop "9BC")))
       (= '(NIL "Expecting '9'. Got '|'" . ("|" "B" "C")) (parse-digit (chop "|BC")))
+      )))
+
+(detest t-any-of2 ()
+  (let (parse-any-of (any-of2 "A" "B" "C"))
+    (check
+      (= '"A" (get (parse-any-of (chop "AZZ")) 'Val))
+      (= '"B" (get (parse-any-of (chop "BZZ")) 'Val))
+      (= '"C" (get (parse-any-of (chop "CZZ")) 'Val))
+      (= '"a" (get (parse-lowc2 (chop "aBC")) 'Val))
+      (= '"9" (get (parse-digit2 (chop "9BC")) 'Val))
       )))
 
 (detest t-all-of ()
@@ -118,6 +185,13 @@
     (= '(NIL "Expecting 'C'. Got '|'" . ("|" "D" "E")) ((pstring2 "ABC") (chop "AB|DE")))
     ))
 
+(detest t-mapping2 ()
+  (check
+    (= "123" (get (parse3digits-as-str2 (chop "123C")) 'Val))
+    (= 123 (get (parse3digits-as-int2 (chop "123C")) 'Val))
+    (= "ABC" (get ((pstring4 "ABC") (chop "ABCDE")) 'Val))
+    ))
+
 (detest t-many-1 ()
   (let many-a (many (pchar2 "A"))
     (check
@@ -127,6 +201,15 @@
       (= '(() . ("|" "B" "C" "D")) (many-a (chop "|BCD")))
       )))
 
+(detest t-many-12 ()
+  (let many-a (many2 (pchar3 "A"))
+    (check
+      (= '("A") (get (many-a (chop "ABCD")) 'Val))
+      (= '("A" "A") (get (many-a (chop "AACD")) 'Val))
+      (= '("A" "A" "A") (get (many-a (chop "AAAD")) 'Val))
+      (= '() (get (many-a (chop "|BCD")) 'Val))
+      )))
+
 (detest t-many-2 ()
   (let many-ab (many (pstring2 "AB"))
     (check
@@ -134,6 +217,15 @@
       (= '(("AB" "AB") . ("C" "D")) (many-ab (chop "ABABCD")))
       (= '(() . ("Z" "C" "D")) (many-ab (chop "ZCD")))
       (= '(() . ("A" "Z" "C" "D")) (many-ab (chop "AZCD")))
+      )))
+
+(detest t-many-22 ()
+  (let many-ab (many2 (pstring4 "AB"))
+    (check
+      (= '("AB") (get (many-ab (chop "ABCD")) 'Val))
+      (= '("AB" "AB") (get (many-ab (chop "ABABCD")) 'Val))
+      (= '() (get (many-ab (chop "ZCD")) 'Val))
+      (= '() (get (many-ab (chop "AZCD")) 'Val))
       )))
 
 (detest t-many-3 ()
@@ -212,14 +304,22 @@
     (t-pchar2)
     (t-pchar3)
     (t-and-p)
+    (t-and-p2)
     (t-or-p)
+    (t-or-p2)
     (t-and-or)
+    (t-and-or2)
     (t-choice)
+    (t-choice2)
     (t-any-of)
+    (t-any-of2)
     (t-all-of)
     (t-mapping)
+    (t-mapping2)
     (t-many-1)
+    (t-many-12)
     (t-many-2)
+    (t-many-22)
     (t-many-3)
     (t-many-4)
     (t-many-5)
@@ -230,3 +330,4 @@
     ))
 
 (t-parser)
+
