@@ -431,11 +431,6 @@
       (when (= 0 (% I 2))
         (link X)))))
 
-(de to-obj (Lst)
-  (let (Keys (odd Lst)
-        Vals (even Lst))
-    (mapcar '((K V) (list K V)) Keys Vals)))
-
 (def 'jobject
   (let (oleft (droprp (charp "{") 'spacesp)
         oright (droprp (charp "}") 'spacesp)
@@ -445,7 +440,6 @@
         value (droprp 'jvalue 'spacesp)
         keyval (andp (droprp key colon) value)
         keyvals (sepbyp keyval comma))
-    #(fp 'to-obj (betweenp oleft keyvals oright))))
     (betweenp oleft keyvals oright)))
 
 (def 'jvalue
@@ -489,6 +483,66 @@
 (setq ex04 (to-chars "ex04.json"))
 (setq ex05 (to-chars "ex05.json"))
 
-(de read-json (Source))
+(de read-json (Source)
+  (cond
+    ((info Source) (jvalue (to-chars Source)))
+    ((str? Source) (jvalue (chop Source)))
+    (T (throw 'JsonParseError "cannot read source"))))
 
-(de print-json (Jobj))
+(setq *Json-pretty-print NIL)
+(setq *Json-indent-char " ")
+(setq *Json-indent 2)
+
+(de print-json (Jval Indent)
+  (let (Newline (when *Json-pretty-print "\n")
+        Ind (if (and *Json-pretty-print Indent) Indent 0)
+        Ind++ (inc Ind)
+        IndStr (when *Json-pretty-print (need (* Ind *Json-indent) *Json-indent-char))
+        IndStr++ (when *Json-pretty-print (need (* Ind++ *Json-indent) *Json-indent-char)))
+    (cond
+      ((atom Jval) # single value
+        (prin IndStr)
+        (cond
+          ((str? Jval) (print Jval))
+          ((num? Jval) (prin (format Jval *Scl)))
+          ((= NIL Jval) (prin "{}"))
+          (T (prin Jval))))
+      ((= T (car Jval)) # array
+        (prin "[" Newline)
+        (map '((X)
+               (let V (car X)
+                 (unless (atom V) (prin IndStr++))
+                 (print-json V Ind++))
+               (prin (when (cdr X) ",") Newline))
+             (cdr Jval))
+        (prin IndStr "]"))
+      (T # object
+        (prin "{" Newline)
+        (map '((X)
+               (print-json (caar X) Ind++)
+               (if *Json-pretty-print
+                 (prin " : ")
+                 (prin ":"))
+               (let V (cadar X)
+                 (if (atom V)
+                   (print-json V)
+                   (print-json V Ind++)))
+               (prin (when (cdr X) ",") Newline))
+             Jval)
+        (prin IndStr "}")))))
+
+# helper fun for testing
+(de to-str (Jval)
+  (pipe (print-json Jval) (line T)))
+
+(test "[]" (to-str '(T)))
+(test "[\"a\"]" (to-str '(T "a")))
+(test "[\"a\",\"b\"]" (to-str '(T "a" "b")))
+(test "[1,2]" (to-str '(T 1 2)))
+
+(test "{}" (to-str '()))
+(test "{\"a\":false}" (to-str '(("a" false))))
+(test "{\"a\":false,\"b\":12}"
+      (to-str '(("a" false) ("b" 12))))
+
+(setq *Json-pretty-print T)
