@@ -1,38 +1,4 @@
-(de f (X)
-  (cons (+ 1 X) "f called."))
-
-(de g (X)
-  (cons (* 2 X) "g called."))
-
-(de bind (@F @G)
-  (fill
-    '((X)
-      (let ((RG . SG) ('@G X)
-            (RF . SF) ('@F RG))
-        (cons RF (pack SG SF))))))
-
-(def 'h (bind f g))
-
-(test '(5 . "g called.f called.") (h 2))
-
-(de unit (X)
-  (cons X ""))
-
-(def 'fu (bind f unit))
-(def 'uf (bind unit f))
-
-(test (fu 3) (f 3))
-(test (uf 3) (f 3))
-
-(de lift (Fn)
-  (bind Fn unit))
-
-(def 'lflg (bind (lift f) (lift g)))
-(def 'lfg (lift (bind f g)))
-
-(test (lflg 3) (lfg 3))
-
-###
+# combinatory parser
 
 (setq *Lowcase (make (for I 26 (link (char (+ 96 I))))))
 (setq *Uppcase (mapcar uppc *Lowcase))
@@ -518,3 +484,11 @@
   (chop (in file (till NIL T))))
 
 (setq ex01 (to-chars "ex01.json"))
+(setq ex02 (to-chars "ex02.json"))
+(setq ex03 (to-chars "ex03.json"))
+(setq ex04 (to-chars "ex04.json"))
+(setq ex05 (to-chars "ex05.json"))
+
+(de read-json (Source))
+
+(de print-json (Jobj))
