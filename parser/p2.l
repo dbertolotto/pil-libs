@@ -59,41 +59,45 @@
       (let X (car Inp)
         (cond
           ((= X NIL) (new '(+PErr) "No more input"))
-          (('@Pred X) (new '(+PSuc) (cons X) (cdr Inp)))
+          (('@Pred X) (new '(+PSuc) X (cdr Inp)))
           (T (new '(+PErr) (text "Unexpected '@1'" X))))))))
 
 (de charp (@C)
   (satisfy (fill '((X) (= X @C)))))
 
 (let pA (charp "A")
-  (test '("A") (v> (pA '("A"))))
+  (test "A" (v> (pA '("A"))))
   (test T (not (= NIL (isa '+PErr (pA '("B"))))))
   (test T (not (= NIL (isa '+PErr (pA '(""))))))
   )
 
 (def 'digitp (satisfy '((X) (member X *Digit))))
 
-(test '("1") (v> (digitp '("1"))))
+(test "1" (v> (digitp '("1"))))
 
 (def 'wsp (satisfy '((X) (member X *Ws))))
 
-(test '(" ") (v> (wsp '(" "))))
+(test " " (v> (wsp '(" "))))
 
 (def 'lowcp (satisfy '((X) (member X *Lowcase))))
 
-(test '("g") (v> (lowcp '("g"))))
+(test "g" (v> (lowcp '("g"))))
 
 (def 'uppcp (satisfy '((X) (member X *Uppcase))))
 
-(test '("G") (v> (uppcp '("G"))))
+(test "G" (v> (uppcp '("G"))))
 
 (def 'alphap (satisfy '((X) (member X *Alpha))))
 
-(test '("G") (v> (alphap '("G"))))
-(test '("g") (v> (alphap '("g"))))
-(test '("1") (v> (alphap '("1"))))
+(test "G" (v> (alphap '("G"))))
+(test "g" (v> (alphap '("g"))))
+(test "1" (v> (alphap '("1"))))
 
 (def 'hexp (satisfy '((X) (member X *Hex))))
+
+(de andp-comb (V1 V2)
+  (append (if (atom V1) (list V1) V1)
+          (if V2 (list V2) V2)))
 
 (de andp (@P1 @P2)
   (fill
@@ -102,14 +106,17 @@
         (if (isa '+PSuc R1)
           (let R2 ('@P2 (r> R1))
             (if (isa '+PSuc R2)
-              (new '(+PSuc) (append (v> R1) (v> R2)) (r> R2))
+              (new '(+PSuc) (andp-comb (v> R1) (v> R2)) (r> R2))
               R2))
           R1)))))
 
 (let (pA (charp "A")
       pB (charp "B")
-      pAB (andp pA pB))
+      pC (charp "C")
+      pAB (andp pA pB)
+      pABC (andp (andp pA pB) pC))
   (test '("A" "B") (v> (pAB (chop "AB"))))
+  (test '("A" "B" "C") (v> (pABC (chop "ABC"))))
   )
 
 (de orp (@P1 @P2)
@@ -123,8 +130,8 @@
 (let (pA (charp "A")
       pB (charp "B")
       pAB (orp pA pB))
-  (test '("A") (v> (pAB (chop "AB"))))
-  (test '("B") (v> (pAB (chop "BA"))))
+  (test "A" (v> (pAB (chop "AB"))))
+  (test "B" (v> (pAB (chop "BA"))))
   )
 
 (de reduce (Fun Lst Init)
@@ -155,13 +162,15 @@
   (reduce 'orp (rest)))
 
 (de stringp (Str)
-  (fp 'list
-    (fp 'pack
-      (apply 'sequencep (mapcar 'charp (chop Str))))))
+  (fp 'pack
+    (apply 'sequencep (mapcar 'charp (chop Str)))))
 
 (let abc (stringp "abc")
-  (test '("abc") (v> (abc (chop "abcd"))))
+  (test "abc" (v> (abc (chop "abcd"))))
   )
+
+(de manyp-comb (V1 V2)
+  (insert 0 V2 V1))
 
 (de manyp (@P)
   (fill
@@ -169,7 +178,7 @@
        (let R1 ('@P Inp)
          (if (isa '+PSuc R1)
            (let R2 ((manyp '@P) (r> R1))
-             (new '(+PSuc) (append (v> R1) (v> R2)) (r> R2)))
+             (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
            (new '(+PSuc) '() Inp))))))
 
 (let (pA (charp "A")
@@ -179,6 +188,7 @@
   (test '("A") (v> (mA (chop "A."))))
   (test '("A" "A") (v> (mA (chop "AA"))))
   (test '("A" "A") (v> (mA (chop "AA."))))
+  (test '("A" "A" "A") (v> (mA (chop "AAA"))))
   )
 
 (let (pAB (stringp "AB")
@@ -190,7 +200,8 @@
   )
 
 (de many1p (P)
-  (andp P (manyp P)))
+  (fp '((X) (cons (car X) (cadr X)))
+      (andp P (manyp P))))
 
 (let (pA (charp "A")
       mA (many1p pA))
@@ -206,15 +217,15 @@
       (let R ('@P Inp)
         (if (isa '+PSuc R)
           R
-          (new '(+PSuc) '(NIL) Inp))))))
+          (new '(+PSuc) '() Inp))))))
 
 (let (pA (charp "A")
       pB (charp "B")
       oA (optp pA)
       oB (optp pB)
       aop (andp oA pB))
-  (test '(NIL) (v> (oA (chop "B"))))
-  (test '("A") (v> (oA (chop "A"))))
+  (test '() (v> (oA (chop "B"))))
+  (test "A" (v> (oA (chop "A"))))
   (test '("A" "B") (v> (aop (chop "AB"))))
   (test '(NIL "B") (v> (aop (chop "B"))))
   )
@@ -257,11 +268,13 @@
       pdl (droplp (charp ",") (charp "A"))
       AB (andp (charp "A") (charp "B"))
       pdr2 (droprp AB (charp ","))
-      pdl2 (droplp (charp ",") AB))
-  (test '("A") (v> (pdr (chop "A,"))))
-  (test '("A") (v> (pdl (chop ",A"))))
+      pdl2 (droplp (charp ",") AB)
+      btw (betweenp (charp "(") AB (charp ")")))
+  (test "A" (v> (pdr (chop "A,"))))
+  (test "A" (v> (pdl (chop ",A"))))
   (test '("A" "B") (v> (pdr2 (chop "AB,"))))
   (test '("A" "B") (v> (pdl2 (chop ",AB"))))
+  (test '("A" "B") (v> (btw (chop "(AB)"))))
   )
 
 (de sepbyp (P Psep)
@@ -275,7 +288,8 @@
   )
 
 (de sepby1p (P Psep)
-  (andp P (sepbyp P Psep)))
+  (fp '((X) (cons (car X) (cadr X)))
+      (andp P (sepbyp P Psep))))
 
 (let sp (sepby1p 'digitp (charp ";"))
   (test T (not (= NIL (isa '+PErr (sp (chop "A"))))))
@@ -305,19 +319,19 @@
           (new '(+PSuc) @R (r> R))
           R)))))
 
-(def 'jnull (mapp 'any (stringp "null")))
-(def 'jtrue (mapp 'any (stringp "true")))
-(def 'jfalse (mapp 'any (stringp "false")))
+(def 'jnull (fp 'any (stringp "null")))
+(def 'jtrue (fp 'any (stringp "true")))
+(def 'jfalse (fp 'any (stringp "false")))
 (def 'jbool (orp 'jtrue 'jfalse))
 
-(test '(null) (v> (jnull (chop "null"))))
-(test '(true) (v> (jtrue (chop "true"))))
-(test '(false) (v> (jfalse (chop "false"))))
+(test 'null (v> (jnull (chop "null"))))
+(test 'true (v> (jtrue (chop "true"))))
+(test 'false (v> (jfalse (chop "false"))))
 
 (def 'junescaped
   (satisfy '((X) (not (or (= X "\\") (= X "\""))))))
 
-(test '("a") (v> (junescaped (chop "a"))))
+(test "a" (v> (junescaped (chop "a"))))
 (test T (not (= NIL (isa '+PErr (junescaped "\\")))))
 
 (setq *Jesc
@@ -333,27 +347,26 @@
     ))
 
 (def 'jescaped
-  (fp 'list
-    (apply 'choicep
-           (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc))))
+  (apply 'choicep
+         (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc)))
 
-(test '("\\") (v> (jescaped (chop "\\\\"))))
-(test '("\t") (v> (jescaped (chop "\\t"))))
+(test "\\" (v> (jescaped (chop "\\\\"))))
+(test "\t" (v> (jescaped (chop "\\t"))))
 
 (def 'junicode
   (let (bl (charp "\\")
         uc (charp "u")
         hx (sequencep 'hexp 'hexp 'hexp 'hexp)
-        code (fp 'list (fp 'char (fp 'hex (fp 'pack hx)))))
+        code (fp 'char (fp 'hex (fp 'pack hx))))
     (droplp bl (droplp uc code))))
 
-(test (list (char (hex "263A"))) (v> (junicode (chop "\\u263A"))))
+(test (char (hex "263A")) (v> (junicode (chop "\\u263A"))))
 
 (def 'jchar (choicep 'junescaped 'jescaped 'junicode))
 
-(test '("a") (v> (jchar (chop "ab"))))
-(test '("\\") (v> (jchar (chop "\\\\"))))
-(test (list (char (hex "263A"))) (v> (jchar (chop "\\u263A"))))
+(test "a" (v> (jchar (chop "ab"))))
+(test "\\" (v> (jchar (chop "\\\\"))))
+(test (char (hex "263A")) (v> (jchar (chop "\\u263A"))))
 
 (let ajc (andp 'jchar 'jchar)
   (test '("a" "\\") (v> (ajc (chop "a\\\\"))))
@@ -378,14 +391,14 @@
 
 (def 'jstring
   (let (quotep (charp "\"")
-        manych (fp 'list (fp 'pack (manyp 'jchar))))
+        manych (fp 'pack (manyp 'jchar)))
     (droprp (droplp quotep manych) quotep)))
 
-(test '("") (v> (jstring (chop "\"\""))))
-(test '("a") (v> (jstring (chop "\"a\""))))
-(test '("ab") (v> (jstring (chop "\"ab\""))))
-(test '("ab\tde") (v> (jstring (chop "\"ab\\tde\""))))
-(test '("ab?de") (v> (jstring (chop "\"ab\\u003fde\""))))
+(test "" (v> (jstring (chop "\"\""))))
+(test "a" (v> (jstring (chop "\"a\""))))
+(test "ab" (v> (jstring (chop "\"ab\""))))
+(test "ab\tde" (v> (jstring (chop "\"ab\\tde\""))))
+(test "ab?de" (v> (jstring (chop "\"ab\\u003fde\""))))
 
 (de to-num (s int fr se ex)
   (let (exn (format ex)
@@ -397,11 +410,17 @@
           op (if (= se "-") '/ '*))
       (op num exval))))
 
+(setq *Scl 0)
 (test 1 (to-num "" "1" "" "" ""))
+(setq *Scl 0)
 (test 1 (to-num "+" "1" "" "" ""))
+(setq *Scl 0)
 (test -1 (to-num "-" "1" "" "" ""))
+(setq *Scl 0)
 (test -12 (to-num "-" "1" "2" "" ""))
+(setq *Scl 0)
 (test -1200 (to-num "-" "1" "2" "" "2"))
+(setq *Scl 0)
 (test 12 (to-num "" "1" "2" "-" "2"))
 
 (def 'jnumber
@@ -414,10 +433,12 @@
         tuple (sequencep intpart
                          (optp fracpart)
                          (optp exppart)))
-    (fp 'list (applyp 'to-num (mapp 'pack tuple)))))
+    (applyp 'to-num (mapp 'pack tuple))))
 
-(test '(0) (v> (jnumber (chop "0"))))
-(test '(12) (v> (jnumber (chop "+1.2e-3"))))
+(setq *Scl 0)
+(test 0 (v> (jnumber (chop "0"))))
+(setq *Scl 0)
+(test 12 (v> (jnumber (chop "+1.2e-3"))))
 
 (def 'spacesp (manyp 'wsp))
 
@@ -431,7 +452,6 @@
         value (droprp 'jvalue 'spacesp)
         values (sepbyp value comma))
     (fp 'to-array (betweenp aleft values aright))))
-    #(fp 'list (fp 'to-array (betweenp aleft values aright)))))
 
 (de odd (Lst)
   (make
@@ -460,7 +480,7 @@
         keyval (andp (droprp key colon) value)
         keyvals (sepbyp keyval comma))
     #(fp 'to-obj (betweenp oleft keyvals oright))))
-    (fp 'to-obj (betweenp oleft keyvals oright))))
+    (betweenp oleft keyvals oright)))
 
 (def 'jvalue
   (choicep
@@ -471,17 +491,27 @@
     'jbool
     'jnull))
 
-(test '(T "a" false)
-      (v> (jarray (chop "[\"a\",false]"))))
-(test '(T "a" ("b" false))
-      (v> (jarray (chop "[\"a\",{\"b\":false}]"))))
-(test '("a" false)
+(setq *Scl 0)
+(test '(T) (v> (jarray (chop "[ ]"))))
+(test '(T "a" false 12)
+      (v> (jarray (chop "[ \"a\" , false , 12 ]"))))
+(test '(T "ab" (T true 12) "cd")
+      (v> (jarray (chop "[\"ab\",[true,12],\"cd\"]"))))
+(test '() (v> (jobject (chop "{ }"))))
+(test '(("a" false))
       (v> (jobject (chop "{\"a\":false}"))))
-(test '("a" (T false))
+(test '(("b" null))
+      (v> (jobject (chop "{ \"b\" : null }"))))
+(test '(("b" null) ("c" 12))
+      (v> (jobject (chop "{\"b\":null , \"c\":12}"))))
+
+(test '(T "a" (("b" false)))
+      (v> (jarray (chop "[\"a\",{\"b\":false}]"))))
+(test '(("a" (T false)))
       (v> (jobject (chop "{\"a\":[false]}"))))
-(test '("a" (T false 1))
+(test '(("a" (T false 1)))
       (v> (jobject (chop "{\"a\":[false,1]}"))))
-(test '("a" (T false ("b" 1)))
+(test '(("a" (T false (("b" 1)))))
       (v> (jobject (chop "{\"a\":[false,{\"b\":1}]}"))))
 
 (de to-chars (file)
