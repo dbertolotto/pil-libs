@@ -43,7 +43,7 @@
              (mvprintw 25 0 "Character pressed is = %3d\nHopefully it can be printed as '%c'" c c)
              (refresh))))
       (print-menu win hl choices)
-      (NIL (= ch 0) (mvprintw 23 0 "You chose choice %d with choice string %s\n" ch (nth choices ch T))))
+      (NIL (= ch 0) (mvprintw 23 0 "You chose choice %d with string %s\n" ch (nth choices ch T))))
     (clrtoeol)
     (refresh)
     (getch)

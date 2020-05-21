@@ -21,25 +21,21 @@
   (pass 'native (if (get lib) lib (find-lib))))
 
 (local) keyF
+(setq keyF0 (oct "410"))
 (de keyF (X)
-  (+ X 264))
+  (+ X keyF0))
 
 (local) '(keyDown keyUp keyLeft keyRight keyMouse)
 (setq
-  keyDown 402
-  keyUp 403
-  keyLeft 404
-  keyRight 405
-  keyMouse 631)
+  keyDown (oct "402")
+  keyUp (oct "403")
+  keyLeft (oct "404")
+  keyRight (oct "405")
+  keyMouse (oct "631"))
 
 (local) ncursesBits
-(de ncursesBits (M S)
-   (>> (- (+ S 8)) M) )
-
-(local) ncursesMouseMask
-(de ncursesMouseMask (M B)
-  (let N (if (> *Curses-mouse-version 1) 5 6)
-    (>> (* (- B 1) N) M)))
+(de ncursesBits (Mask Shift)
+   (>> (- (+ Shift 8)) Mask) )
 
 (local) '(aStandout aUnderline aReverse aBlink aDim aBold aAltcharset aInvis aProtect aHorizontal aLeft aLow aRight aTop aVertical aItalic)
 (setq
@@ -71,6 +67,11 @@
   cCyan 6
   cWhite 7)
 
+(local) ncursesMouseMask
+(de ncursesMouseMask (Bit Mask)
+  (let N (if (> *Curses-mouse-version 1) 5 6)
+    (>> (- (* (- Bit 1) N)) Mask)))
+
 (setq
   mButtonReleased 1
   mButtonPressed 2
@@ -85,10 +86,29 @@
   mButton1Clicked (ncursesMouseMask 1 mButtonClicked)
   mButton1DoubleClicked (ncursesMouseMask 1 mDoubleClicked)
   mButton1TripleClicked (ncursesMouseMask 1 mTripleClicked)
-  mButtonCtrl (ncursesMouseMask 5 1)
-  mButtonShift (ncursesMouseMask 5 2)
-  mButtonAlt (ncursesMouseMask 5 4)
-  mReportMousePosition (ncursesMouseMask 5 10))
+
+  mButton2Released (ncursesMouseMask 2 mButtonReleased)
+  mButton2Pressed (ncursesMouseMask 2 mButtonPressed)
+  mButton2Clicked (ncursesMouseMask 2 mButtonClicked)
+  mButton2DoubleClicked (ncursesMouseMask 2 mDoubleClicked)
+  mButton2TripleClicked (ncursesMouseMask 2 mTripleClicked)
+
+  mButton3Released (ncursesMouseMask 3 mButtonReleased)
+  mButton3Pressed (ncursesMouseMask 3 mButtonPressed)
+  mButton3Clicked (ncursesMouseMask 3 mButtonClicked)
+  mButton3DoubleClicked (ncursesMouseMask 3 mDoubleClicked)
+  mButton3TripleClicked (ncursesMouseMask 3 mTripleClicked)
+
+  mButton4Released (ncursesMouseMask 4 mButtonReleased)
+  mButton4Pressed (ncursesMouseMask 4 mButtonPressed)
+  mButton4Clicked (ncursesMouseMask 4 mButtonClicked)
+  mButton4DoubleClicked (ncursesMouseMask 4 mDoubleClicked)
+  mButton4TripleClicked (ncursesMouseMask 4 mTripleClicked)
+
+  mButtonCtrl (ncursesMouseMask (if (> *Curses-mouse-version 1) 6 5) 1)
+  mButtonShift (ncursesMouseMask (if (> *Curses-mouse-version 1) 6 5) 2)
+  mButtonAlt (ncursesMouseMask (if (> *Curses-mouse-version 1) 6 5) 4)
+  mReportMousePosition (ncursesMouseMask (if (> *Curses-mouse-version 1) 6 5) 10))
 
 (setq mAllEvents (- mReportMousePosition 1))
 
@@ -364,7 +384,7 @@ The parameters taken are
   (curses "has_mouse" 'B))
 (de getmouse ()
   (use mevent
-    (curses "getmouse" 'I '(mevent (B I I I N)))
+    (curses "getmouse" 'I '(mevent (NIL I (I . 3) I) . 0))
     mevent))
 (de ungetmouse (mevent)
   (curses "ungetmouse" 'I mevent))
