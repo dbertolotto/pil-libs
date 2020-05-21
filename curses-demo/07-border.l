@@ -14,7 +14,7 @@
     (printw "press q to quit")
     (refresh)
     (attroff (color-pair 1))
-    (create-box winp T) 
+    (create-box winp T)
     (let (ch (cgetch))
       (while (not (= ch "q"))
         (cond
@@ -22,7 +22,7 @@
            (create-box winp NIL)
            (with winp (dec (:: sx)))
            (create-box winp T))
-          ((= ch "l") 
+          ((= ch "l")
            (create-box winp NIL)
            (with winp (inc (:: sx)))
            (create-box winp T))
@@ -75,7 +75,7 @@
           (mvvline (+ y 1) (+ x w) (: rs) (- h 1)))
         (for (j y (<= j (+ y h)) (inc j))
           (for (i x (<= i (+ x w)) (inc i))
-	    (mvaddch j i (char " ")))))))
+	         (mvaddch j i (char " ")))))))
   (refresh))
 
 (border-demo)

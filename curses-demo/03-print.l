@@ -10,7 +10,7 @@
     (printw "Try resizing your window (if possible) and then run this program again"))
   (refresh)
   (getch)
-  (endwin)
-  (bye))
+  (endwin))
 
 (print-demo)
+(bye)

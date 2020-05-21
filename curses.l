@@ -1,5 +1,7 @@
 #(symbols 'curses 'pico)
 
+(setq *Curses-mouse-version 2)
+
 (local) paths
 (setq paths '("libncursesw.so"
               "libncursesw.so.6"
@@ -22,19 +24,25 @@
 (de keyF (X)
   (+ X 264))
 
-(local) '(keyDown keyUp keyLeft keyRight)
+(local) '(keyDown keyUp keyLeft keyRight keyMouse)
 (setq
   keyDown 402
   keyUp 403
   keyLeft 404
-  keyRight 405)
+  keyRight 405
+  keyMouse 631)
 
 (local) ncursesBits
 (de ncursesBits (M S)
    (>> (- (+ S 8)) M) )
 
+(local) ncursesMouseMask
+(de ncursesMouseMask (M B)
+  (let N (if (> *Curses-mouse-version 1) 5 6)
+    (>> (* (- B 1) N) M)))
+
 (local) '(aStandout aUnderline aReverse aBlink aDim aBold aAltcharset aInvis aProtect aHorizontal aLeft aLow aRight aTop aVertical aItalic)
-(setq 
+(setq
   aStandout (ncursesBits 1 8)
   aUnderline (ncursesBits 1 9)
   aReverse (ncursesBits 1 10)
@@ -63,15 +71,53 @@
   cCyan 6
   cWhite 7)
 
+(setq
+  mButtonReleased 1
+  mButtonPressed 2
+  mButtonClicked 4
+  mDoubleClicked 10
+  mTripleClicked 20
+  mReservedEvent 40)
+
+(setq
+  mButton1Released (ncursesMouseMask 1 mButtonReleased)
+  mButton1Pressed (ncursesMouseMask 1 mButtonPressed)
+  mButton1Clicked (ncursesMouseMask 1 mButtonClicked)
+  mButton1DoubleClicked (ncursesMouseMask 1 mDoubleClicked)
+  mButton1TripleClicked (ncursesMouseMask 1 mTripleClicked)
+  mButtonCtrl (ncursesMouseMask 5 1)
+  mButtonShift (ncursesMouseMask 5 2)
+  mButtonAlt (ncursesMouseMask 5 4)
+  mReportMousePosition (ncursesMouseMask 5 10))
+
+(setq mAllEvents (- mReportMousePosition 1))
+
 (local) color-pair
 (de color-pair (n) (ncursesBits n 0))
 
-(local) init-pair
-(de init-pair (pair f b)
-  (curses "init_pair" 'I pair f b))
+(local) '(start-color init-pair init-color has-colors can-change-color color-content pair-content)
+(de start-color ()
+  (curses "start_color" 'I))
+(de init-pair (pair fg bg)
+  (curses "init_pair" 'I pair fg bg))
+(de init-color (color r g b)
+  (curses "init_color" 'I color r g b))
+(de has-colors ()
+  (curses "has_colors" 'B))
+(de can-change-color ()
+  (curses "can_change_color" 'B))
+(de color-content (color)
+  (use (r g b)
+    (curses "color_content" 'I color '(r (4 . B) 0) '(g (4 . B) 0) '(b (4 . B) 0))
+    (list r g b)))
+(de pair-content (pair)
+  (use (fg bg)
+    (curses "pair_content" 'I pair '(fg (4 . B) 0) '(bg (4 . B) 0))
+    (cons fg bg)))
 
 (local) initscr
-(de initscr () (curses "initscr" 'N))
+(de initscr ()
+  (curses "initscr" 'N))
 
 (local) '(printw mvprintw wprintw mvwprintw)
 (de printw @
@@ -98,6 +144,13 @@
   (curses "wgetch" 'I win))
 (de mvwgetch (win y x)
   (curses "mvwgetch" 'I win y x))
+(de has-key (ch)
+  (curses "has_key" 'I ch))
+
+(de getwch ()
+  (use wint
+    (curses "get_wch" 'I '(wint (4 . I)))
+    wint))
 
 (local) cgetch
 (de cgetch ()
@@ -143,9 +196,11 @@
 (de wattroff (win . @)
   (curses "wattroff" 'I win (pass '|)))
 
-(local) attrset
+(local) '(attrset wattrset)
 (de attrset @
   (curses "attrset" 'I (pass '|)))
+(de wattrset (win . @)
+  (curses "wattrset" 'I win (pass '|)))
 
 (local) '(chgat mvchgat wchgat mvwchgat)
 (de chgat (n attr pair)
@@ -181,15 +236,21 @@
 (de vwprintw (win . @)
   (pass 'curses "vwprintw" NIL win))
 
-(local) '(getmaxy getmaxx)
+(local) '(getcury getcurx getmaxy getmaxx)
+(de getcury (win)
+  (curses "getcury" 'I win))
+(de getcurx (win)
+  (curses "getcurx" 'I win))
 (de getmaxy (win)
   (curses "getmaxy" 'I win))
 (de getmaxx (win)
   (curses "getmaxx" 'I win))
 
-(local) getmaxyx
-(de getmaxyx (win row col)
-  (curses "getmaxyx" win row col))
+(local) '(getyx getmaxyx)
+(de getyx (win)
+  (cons (getcury win) (getcurx win)))
+(de getmaxyx (win)
+  (cons (getmaxy win) (getmaxx win)))
 
 (local) '(addstr mvaddstr waddstr mvwaddstr)
 (de addstr @
@@ -231,9 +292,11 @@
 (de mvwgetstr (y x win . @)
   (pass 'curses "mvwgetstr" 'N y x win))
 
-(local) '(start-color init_pair)
-(de start-color () (curses "start_color" 'I))
-(de init_pair (pair f b) (curses "init_pair" 'I pair f b))
+(local) '(move wmove)
+(de move (y x)
+  (curses "move" 'I y x))
+(de wmove (win y x)
+  (curses "wmove" 'I win y x))
 
 (local) box
 (de box (win verch horch)
@@ -279,10 +342,6 @@ The parameters taken are
 (de mvwvline (win y x ch n)
   (curses "mvwvline" 'I win y x ch n))
 
-(local) has-colors
-(de has-colors ()
-  (curses "has_colors" 'B))
-
 (local) '(erase werase clear wclear clrtobot wclrtobot clrtoeol wclrtoeol)
 (de erase ()
   (curses "erase" 'I))
@@ -300,3 +359,18 @@ The parameters taken are
   (curses "clrtoeol" 'I))
 (de wclrtoeol (win)
   (curses "wclrtoeol" 'I win))
+
+(de has-mouse ()
+  (curses "has_mouse" 'B))
+(de getmouse ()
+  (use mevent
+    (curses "getmouse" 'I '(mevent (B I I I N)))
+    mevent))
+(de ungetmouse (mevent)
+  (curses "ungetmouse" 'I mevent))
+(de mousemask (newmask oldmask)
+  (curses "mousemask" 'N newmask oldmask))
+(de wenclose (win y x)
+  (curses "wenclose" 'B win y x))
+(de mouseinterval (interval)
+  (curses "mouseinterval" 'I interval))
