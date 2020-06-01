@@ -1,86 +1,134 @@
-#(symbols 'log2 'pico)
+# Logging library
+#(symbols 'logging 'pico)
 
-(def '*LogErr 20)
-(def '*LogInf 40)
-(def '*LogDbg 80)
-(def '*LogAll 100)
+(def '*LogLevels
+  (list
+   '(fatal . 10)
+   '(error . 20)
+   '(warn . 30)
+   '(info . 40)
+   '(debug . 60)
+   '(trace . 80)
+   '(all . 100)))
 
-(def '*LogLevel *LogInf)
+(de log-prio (Level)
+  (cdr (assoc Level *LogLevels)))
 
-(de get-log-level ()
-  *LogLevel)
-
-(de prinl-logger (@Out)
+(de sender-prinl (@Out)
   (fill
     '((Message)
-      (out @Out (prinl Message)))))
+      (out @Out
+        (prinl (fill-log-pattern Message))))))
 
-(de term-logger ()
-  (prinl-logger NIL))
+(de sender-term ()
+  (sender-prinl NIL))
 
-(de file-logger (Path)
-  (prinl-logger (pack "+" Path)))
+(de sender-file (Path)
+  (sender-prinl (pack "+" Path)))
 
-(de multi-logger @LogFns
+(de senders @SendFns
   (fill
     '((Message)
-      (for F '@LogFns
+      (for F '@SendFns
         (when F ((eval F) Message))))))
 
-(de log-level (@Level @Logger)
+(de level (@Level @Logger)
   (fill
     '((Message)
-      (when (<= @Level (get-log-level))
-        ('@Logger Message)))))
+      (let MsgLevel (cadr (assoc 'level Message))
+        (when (<= (log-prio MsgLevel)
+                  (log-prio '@Level))
+          ('@Logger Message))))))
 
 (de parse-log-pattern (Pattern)
-  (make
-    (for (Stream (chop Pattern) Stream)
-      (let C (pop 'Stream)
-        (if (= C "@")
-          (link (intern (pack C (pop 'Stream))))
-          (link C))))))
+  (ifn Pattern
+    '(@M)
+    (make
+      (for (Stream (chop Pattern) Stream)
+        (let C (pop 'Stream)
+          (if (= C "@")
+            (link (intern (pack C (pop 'Stream))))
+            (link C)))))))
 
-(de replace-log-pattern (Pattern Message)
-  (let (@M Message
-        @T (stamp)
-        @P *PPid
-        @p *Pid)
-    (fill Pattern)))
+(de fill-log-pattern (Message)
+  (let (Pattern (cadr (assoc 'pattern Message))
+        ParsedPat (parse-log-pattern Pattern)
+        Msg (cadr (assoc 'message Message))
+        Level (cadr (assoc 'level Message))
+        Date (cadr (assoc 'date Message))
+        Time (cadr (assoc 'time Message))
+        Usec (cadr (assoc 'usec Message))
+        Zone (cadr (assoc 'zone Message))
+        Pid (cadr (assoc 'pid Message))
+        PPid (cadr (assoc 'ppid Message))
+        NSpace (cadr (assoc 'nspace Message))
+        @M Msg
+        @L (uppc Level)
+        @D (dat$ Date "-")
+        @T (tim$ Time T)
+        @U Usec
+        @Z (tim$ Zone)
+        @P PPid
+        @p Pid
+        @N NSpace)
+    (pack (fill ParsedPat))))
 
-(de fill-log-pattern (Pattern Message)
-  (pack (replace-log-pattern (parse-log-pattern Pattern) Message)))
-
-(de log-pattern (@Pattern @Logger)
+(de pattern (@Pattern @Logger)
   (fill
     '((Message)
-      ('@Logger (fill-log-pattern @Pattern Message)))))
+      (push 'Message (list 'pattern @Pattern))
+      ('@Logger Message))))
+
+(de timestamp (@Logger)
+  (fill
+    '((Message)
+      (let (Date (date T)
+            Time (time T)
+            Usec (usec T)
+            Zone (tzo))
+        (push 'Message (list 'date Date))
+        (push 'Message (list 'time Time))
+        (push 'Message (list 'usec Usec))
+        (push 'Message (list 'zone Zone))
+        ('@Logger Message)))))
+
+(de sysinf (@Logger)
+  (fill
+    '((Message)
+      (push 'Message (list 'pid *Pid))
+      (push 'Message (list 'ppid *PPid))
+      (push 'Message (list 'nspace (car (symbols))))
+      ('@Logger Message))))
 
 (def '*Loggers '())
-(de add-logger (Logger)
-  (push '*Loggers Logger))
-(de del-logger (Id)
+
+(de remove-logger (Id)
   (delete (assoc Id *Loggers) *Loggers))
-(de logger (Id)
+
+(de get-logger (Id)
   (cadr (assoc Id *Loggers)))
 
-(def 'RootLogger
-  (list ':root
-    (log-pattern "@T | @M"
-      (log-level *LogInfo
-        (term-logger)))))
-(add-logger RootLogger)
+(de logger (Id Logger)
+  (push '*Loggers (list Id Logger)))
 
-(def 'CustomLogger
-  (list ':custom
-    (log-pattern "@T | @M"
-      (multi-logger
-        (log-level *LogInf
-          (term-logger))
-        (log-level *LogDbg
-          (file-logger "app.log"))))))
-(add-logger CustomLogger)
+(logger 'root
+  (sysinf (timestamp
+    (pattern "@L | @D @T.@U T@Z | @P,@p,@N | @M"
+      (level 'info
+        (sender-term))))))
 
-(de log (Message)
-  ((logger ':root) Message))
-#  ((logger ':root) (list (list ':message Message)))
+(logger 'custom
+  (timestamp
+    (pattern "@L | @D @T.@U | @M"
+      (senders
+        (level 'info
+          (sender-term))
+        (level 'debug
+          (sender-file "app.log"))))))
+
+(de log (Logger Level Message)
+  ((get-logger (if Logger Logger 'root))
+   (list (list 'message Message)
+         (list 'level Level))))
+
+
