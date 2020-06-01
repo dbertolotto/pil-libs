@@ -1,7 +1,9 @@
+(symbols 'regex 'pico)
+
 ### Regex library
-(local) '(re-compile re-execute re-match)
 
 ### Globals
+(local) *Nmatch *Extended *Icase *Newline *Nosub *Bol *Eol
 
 # max number of subexpression matches
 (setq *Nmatch 10)
@@ -19,6 +21,7 @@
   *Eol T)
 
 ### Cflags
+(local) REG_EXTENDED REG_ICASE REG_NEWLINE REG_NOSUB build-cflags
 
 # If this bit is set, then use extended regular expression syntax.
 # If not set, then use basic regular expression syntax.
@@ -43,6 +46,7 @@
      (if Nosub REG_NOSUB 0)))
 
 ### Eflags
+(local) REG_NOTBOL REG_NOTEOL build-eflags
 
 # If this bit is set, then the beginning-of-line operator doesn't match the beginning of the string (presumably because it's not the beginning of a line).
 # If not set, then the beginning-of-line operator does match the beginning of the string.
@@ -56,6 +60,7 @@
      (if *Eol 0 REG_NOTEOL)))
 
 ### Native calls
+(local) regcomp build-pmatch regexec regfree regerror
 
 # compile regex
 (de regcomp (Pattern)
@@ -64,9 +69,16 @@
       (cons Preg Errcode))))
 
 # match regex
+# on termux had to change I to N
 (de build-pmatch (Nmatch)
   (when (> Nmatch 0)
-    (list 'Pmatch (cons Nmatch '(I . 2) Nmatch) 0))) # on termux had to change I to N
+    (list 'Pmatch
+          (cons Nmatch
+                (if (= *OS "Android")
+                  '(N . 2)
+                  '(I . 2))
+                Nmatch)
+          0)))
 
 (de regexec (Preg String)
   (use Pmatch
@@ -84,6 +96,7 @@
       (cons Buf Length))))
 
 ### Helpers
+(local) handle-error extract-matches
 
 (de handle-error (Preg Errcode Ident)
   (when (> Errcode 0)
@@ -101,6 +114,7 @@
           (filter '((M) (not (= (car M) -1))) Pmatch)))
 
 ### Wrappers
+(local) re-compile re-execute re-match
 
 (de re-compile (Pattern)
   (let ((Preg . Errcode) (regcomp Pattern))

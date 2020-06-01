@@ -1,44 +1,43 @@
 ### Unit test library
-(local) '(detest check combine-results)
+(symbols 'unit 'pico)
 
-(setq *ColorRes T)
+(local) *TestColor *TestName
+(setq *TestColor T)
 (setq *TestName NIL)
 
+(local) color prin-color prin-red prin-green
+
 (de color (Fun Color . @)
-  (when *ColorRes (call "tput" "setaf" Color))
+  (when *TestColor (call "tput" "setaf" Color))
   (pass Fun)
-  (when *ColorRes (call "tput" "sgr0")))
+  (when *TestColor (call "tput" "sgr0")))
 
 (de prin-color (Color . @)
   (pass color 'prin Color))
 
-(de prin-green @
-  (pass prin-color "2"))
-
 (de prin-red @
   (pass prin-color "1"))
 
-(de print-color (Color . @)
-  (pass color 'print Color))
+(de prin-green @
+  (pass prin-color "2"))
 
-(de print-yellow @
-  (pass print-color "3"))
+(local) report-result check combine-results deftest
 
 (de report-result (Res Form)
   (if Res (prin-green "pass") (prin-red "FAIL"))
   (prin " ... ")
-  (print-yellow *TestName)
+  (print *TestName)
   (prin " : ")
   (println Form)
   Res)
 
-(de combine-results @
-  (full (rest)))
-
 (de check Forms
   (full (mapcar '((F) (report-result (eval F) F)) Forms)))
 
-(de detest Args
+(de combine-results @
+  (full (rest)))
+
+(de deftest Args
   (let (@Name (car Args)
         @Params (cadr Args)
         @Body (cddr Args))

@@ -1,22 +1,22 @@
 ### Regex library tests
 (load "unit.l" "regex.l")
-(symbols '(pico unit regex))
+(symbols 'pico 'unit 'regex)
 
 ### Tests
-(detest t-compile-pass ()
+(deftest t-compile-pass ()
   (check
     (not NIL (re-compile "a"))
     (not NIL (re-compile "[0-9]"))
     (not NIL (re-compile "\[0"))
     ))
 
-(detest t-compile-fail ()
+(deftest t-compile-fail ()
   (check
     (= NIL (re-compile "["))
     (= NIL (re-compile "{"))
     ))
 
-(detest t-match-pass ()
+(deftest t-match-pass ()
   (check
     (= '("a") (re-match "a" "a"))
     (= '("A") (let *Icase T (re-match "a" "A")))
@@ -34,34 +34,34 @@
     (= '("}") (re-match "}" "{}"))
     ))
 
-(detest t-match-subs ()
+(deftest t-match-subs ()
   (check
     (= '("a" "a") (re-match "(a)" "baz"))
     (= '("ooba" "o" "a") (re-match "(o).*(a)" "foobar"))
     (= '("foobar" "oo" "a") (re-match "f([o]+).*(a)r" "foobar"))
     ))
 
-(detest t-match-quick ()
+(deftest t-match-quick ()
   (let *Nmatch 0
     (check
       (= T (re-match "a" "a"))
       (= T (re-match ".*" "a"))
       )))
 
-(detest t-match-fail ()
+(deftest t-match-fail ()
   (check
     (= NIL (re-match "a" "A"))
     (= NIL (re-match "[" "[]"))
     (= NIL (re-match "{" "{}"))
     ))
 
-(detest t-compile ()
+(deftest t-compile ()
   (combine-results
     (t-compile-pass)
     (t-compile-fail)
     ))
 
-(detest t-match ()
+(deftest t-match ()
   (combine-results
     (t-match-pass)
     (t-match-subs)
@@ -69,7 +69,7 @@
     (t-match-fail)
     ))
 
-(detest t-regex ()
+(deftest t-regex ()
   (combine-results
     (t-compile)
     (t-match)
