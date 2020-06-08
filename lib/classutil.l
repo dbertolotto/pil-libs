@@ -2,7 +2,8 @@
 
 (local) &con
 (de &con Lst
-  (eval (conc (list 'dm T Lst) (mapcar '((L) (list '=: L L)) Lst))))
+  (eval (conc (list 'dm T Lst)
+              (mapcar '((L) (list '=: L L)) Lst))))
 
 (local) &get
 (de &get Lst

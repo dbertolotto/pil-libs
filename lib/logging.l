@@ -3,6 +3,7 @@
 
 (def '*LogLevels
   (list
+   '(none . 0)
    '(fatal . 10)
    '(error . 20)
    '(warn . 30)
@@ -79,7 +80,7 @@
       (push 'Message (list 'pattern @Pattern))
       ('@Logger Message))))
 
-(de timestamp (@Logger)
+(de timeinfo (@Logger)
   (fill
     '((Message)
       (let (Date (date T)
@@ -92,7 +93,7 @@
         (push 'Message (list 'zone Zone))
         ('@Logger Message)))))
 
-(de sysinf (@Logger)
+(de sysinfo (@Logger)
   (fill
     '((Message)
       (push 'Message (list 'pid *Pid))
@@ -111,24 +112,17 @@
 (de logger (Id Logger)
   (push '*Loggers (list Id Logger)))
 
+# minimal configuration
+(def '*Logger 'root)
 (logger 'root
-  (sysinf (timestamp
-    (pattern "@L | @D @T.@U T@Z | @P,@p,@N | @M"
-      (level 'info
-        (sender-term))))))
+  (level 'all
+    (sender-term)))
 
-(logger 'custom
-  (timestamp
-    (pattern "@L | @D @T.@U | @M"
-      (senders
-        (level 'info
-          (sender-term))
-        (level 'debug
-          (sender-file "app.log"))))))
+(de logging-conf (Path)
+  (load Path))
 
-(de log (Logger Level Message)
-  ((get-logger (if Logger Logger 'root))
+(de log (Level Message)
+  ((get-logger *Logger)
    (list (list 'message Message)
          (list 'level Level))))
-
 
