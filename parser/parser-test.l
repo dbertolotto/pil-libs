@@ -1,7 +1,7 @@
 (load "parser.l" "../lib/unit.l")
 (symbols '(pico unit parser))
 
-(detest t-pchar ()
+(deftest t-pchar ()
   (check
     (= '(NIL "No more input" . NIL) (pchar "A" '("")))
     (= '(NIL "No more input" . NIL) (pchar "A" '(NIL)))
@@ -11,7 +11,7 @@
     (= '(NIL "Expecting 'A'. Got 'B'" . ("B" "C" "D")) (pchar "A" (chop "BCD")))
     ))
 
-(detest t-pchar2 ()
+(deftest t-pchar2 ()
   (let parse-A (pchar2 "A")
     (check
       (= '(NIL "No more input" . NIL) (parse-A '("")))
@@ -21,7 +21,7 @@
       (= '(NIL "Expecting 'A'. Got 'B'" . ("B" "C" "D")) (parse-A (chop "BCD")))
       )))
 
-(detest t-pchar3 ()
+(deftest t-pchar3 ()
   (let parse-A (pchar3 "A")
     (check
       (isa '+PFail (parse-A '()))
@@ -40,7 +40,7 @@
       (= '("2" "3") (get (digit (chop "123")) 'RestInp))
       )))
 
-(detest t-and-p ()
+(deftest t-and-p ()
   (let (parse-A (pchar2 "A")
         parse-B (pchar2 "B")
         parse-A-then-B (and-p 'parse-A 'parse-B))
@@ -50,7 +50,7 @@
       (= '(("A" "B") . ("C")) (parse-A-then-B (chop "ABC")))
       )))
 
-(detest t-and-p2 ()
+(deftest t-and-p2 ()
   (let (parse-A (pchar3 "A")
         parse-B (pchar3 "B")
         parse-A-then-B (and-p2 'parse-A 'parse-B)
@@ -63,7 +63,7 @@
       (= '("C") (get (parse-A-then-B ABC) 'RestInp))
       )))
 
-(detest t-or-p ()
+(deftest t-or-p ()
   (let (parse-A (pchar2 "A")
         parse-B (pchar2 "B")
         parse-A-else-B (or-p 'parse-A 'parse-B))
@@ -73,7 +73,7 @@
       (= '(NIL "Expecting 'B'. Got 'C'" . ("C" "Z" "Z")) (parse-A-else-B (chop "CZZ")))
       )))
 
-(detest t-or-p2 ()
+(deftest t-or-p2 ()
   (let (parse-A (pchar3 "A")
         parse-B (pchar3 "B")
         parse-A-else-B (or-p2 'parse-A 'parse-B)
@@ -90,7 +90,7 @@
       (= "Unexpected 'C'" (get (parse-A-else-B CZZ) 'Err))
       )))
 
-(detest t-and-or ()
+(deftest t-and-or ()
   (let (parse-A (pchar2 "A")
         parse-B (pchar2 "B")
         parse-C (pchar2 "C")
@@ -103,7 +103,7 @@
       (= '(NIL "Expecting 'C'. Got 'Q'" . ("Q" "Z")) (parse-A-then-B-or-C (chop "AQZ")))
       )))
 
-(detest t-and-or2 ()
+(deftest t-and-or2 ()
   (let (parse-A (pchar3 "A")
         parse-B (pchar3 "B")
         parse-C (pchar3 "C")
@@ -118,7 +118,7 @@
       (= "Unexpected 'Q'" (get (parse-A-then-B-or-C (chop "AQZ")) 'Err))
       )))
 
-(detest t-choice ()
+(deftest t-choice ()
   (let (parse-A (pchar2 "A")
         parse-B (pchar2 "B")
         parse-C (pchar2 "C")
@@ -130,7 +130,7 @@
       (= '(NIL "Expecting 'C'. Got 'Q'" . ("Q" "Z" "Z")) (parse-choice (chop "QZZ")))
       )))
 
-(detest t-choice2 ()
+(deftest t-choice2 ()
   (let (parse-A (pchar3 "A")
         parse-B (pchar3 "B")
         parse-C (pchar3 "C")
@@ -142,7 +142,7 @@
       (= '"Unexpected 'Q'" (get (parse-choice (chop "QZZ")) 'Err))
       )))
 
-(detest t-any-of ()
+(deftest t-any-of ()
   (let (parse-any-of (any-of "A" "B" "C"))
     (check
       (= '(("A") . ("Z" "Z")) (parse-any-of (chop "AZZ")))
@@ -158,7 +158,7 @@
       (= '(NIL "Expecting '9'. Got '|'" . ("|" "B" "C")) (parse-digit (chop "|BC")))
       )))
 
-(detest t-any-of2 ()
+(deftest t-any-of2 ()
   (let (parse-any-of (any-of2 "A" "B" "C"))
     (check
       (= "A" (get (parse-any-of (chop "AZZ")) 'Val))
@@ -168,13 +168,13 @@
       (= "9" (get (parse-digit2 (chop "9BC")) 'Val))
       )))
 
-(detest t-all-of ()
+(deftest t-all-of ()
   (let (parse-abc (pstring "ABC"))
     (check
       (= '(("A" "B" "C") . ("D" "E")) (parse-abc (chop "ABCDE")))
       )))
 
-(detest t-mapping ()
+(deftest t-mapping ()
   (check
     (= '(("1" "2" "3") . ("C")) (parse3digits (chop "123C")))
     (= '(NIL "Expecting '9'. Got 'B'" . ("B" "C")) (parse3digits (chop "12BC")))
@@ -185,14 +185,14 @@
     (= '(NIL "Expecting 'C'. Got '|'" . ("|" "D" "E")) ((pstring2 "ABC") (chop "AB|DE")))
     ))
 
-(detest t-mapping2 ()
+(deftest t-mapping2 ()
   (check
     (= "123" (get (parse3digits-as-str2 (chop "123C")) 'Val))
     (= 123 (get (parse3digits-as-int2 (chop "123C")) 'Val))
     (= "ABC" (get ((pstring4 "ABC") (chop "ABCDE")) 'Val))
     ))
 
-(detest t-many-1 ()
+(deftest t-many-1 ()
   (let many-a (many (pchar2 "A"))
     (check
       (= '(("A") . ("B" "C" "D")) (many-a (chop "ABCD")))
@@ -201,7 +201,7 @@
       (= '(() . ("|" "B" "C" "D")) (many-a (chop "|BCD")))
       )))
 
-(detest t-many-12 ()
+(deftest t-many-12 ()
   (let many-a (many2 (pchar3 "A"))
     (check
       (= '("A") (get (many-a (chop "ABCD")) 'Val))
@@ -210,7 +210,7 @@
       (= '() (get (many-a (chop "|BCD")) 'Val))
       )))
 
-(detest t-many-2 ()
+(deftest t-many-2 ()
   (let many-ab (many (pstring2 "AB"))
     (check
       (= '(("AB") . ("C" "D")) (many-ab (chop "ABCD")))
@@ -219,7 +219,7 @@
       (= '(() . ("A" "Z" "C" "D")) (many-ab (chop "AZCD")))
       )))
 
-(detest t-many-22 ()
+(deftest t-many-22 ()
   (let many-ab (many2 (pstring4 "AB"))
     (check
       (= '("AB") (get (many-ab (chop "ABCD")) 'Val))
@@ -228,7 +228,7 @@
       (= '() (get (many-ab (chop "AZCD")) 'Val))
       )))
 
-(detest t-many-3 ()
+(deftest t-many-3 ()
   (let many-ws (many 'parse-ws)
     (check
       (= '(() . ("A" "B" "C")) (many-ws (chop "ABC")))
@@ -238,7 +238,7 @@
       (= '(("\r") . ("A" "B" "C")) (many-ws (chop "\rABC")))
       )))
 
-(detest t-many-32 ()
+(deftest t-many-32 ()
   (let many-ws (many2 'parse-ws2)
     (check
       (= '() (get (many-ws (chop "ABC")) 'Val))
@@ -248,7 +248,7 @@
       (= '("\r") (get (many-ws (chop "\rABC")) 'Val))
       )))
 
-(detest t-many-4 ()
+(deftest t-many-4 ()
   (let m-digit+ (many+ 'parse-digit)
     (check
       (= '(("1") . ("A" "B" "C")) (m-digit+ (chop "1ABC")))
@@ -258,7 +258,7 @@
       (= '(NIL "Expecting '9'. Got 'A'" . ("A" "B" "C")) (m-digit+ (chop "ABC")))
       )))
 
-(detest t-many-42 ()
+(deftest t-many-42 ()
   (let m-digit+ (many2+ 'parse-digit2)
     (check
       (= '("1") (get (m-digit+ (chop "1ABC")) 'Val))
@@ -268,7 +268,7 @@
       (= "Unexpected 'A'" (get (m-digit+ (chop "ABC")) 'Err))
       )))
 
-(detest t-many-5 ()
+(deftest t-many-5 ()
   (check
     (= '((1) . ("A" "B" "C")) (pint (chop "1ABC")))
     (= '((12) . ("B" "C")) (pint (chop "12BC")))
@@ -277,7 +277,7 @@
     (= '(NIL "Expecting '9'. Got 'A'" . ("A" "B" "C")) (pint (chop "ABC")))
     ))
 
-(detest t-many-52 ()
+(deftest t-many-52 ()
   (check
     (= '1 (get (pint3 (chop "1ABC")) 'Val))
     (= '12 (get (pint3 (chop "12BC")) 'Val))
@@ -286,7 +286,7 @@
     (= "Unexpected 'A'" (get (pint3 (chop "ABC")) 'Err))
     ))
 
-(detest t-opt ()
+(deftest t-opt ()
   (let digit-then-comma (sequence 'parse-digit (opt (pchar2 ",")))
     (check
       (= '(("1" ",") . NIL) (digit-then-comma (chop "1,")))
@@ -295,7 +295,7 @@
       (= '((-123) . ("C")) (pint2 (chop "-123C")))
       )))
 
-(detest t-opt2 ()
+(deftest t-opt2 ()
   (let digit-then-comma (sequence2 'parse-digit2 (opt2 (pchar3 ",")))
     (check
       (= '("1" ",") (get (digit-then-comma (chop "1,")) 'Val))
@@ -304,7 +304,7 @@
       (= '-123 (get (pint4 (chop "-123C")) 'Val))
       )))
 
-(detest t-drop ()
+(deftest t-drop ()
   (let (ws (map-p 'pack (many+ 'parse-ws))
         ab (pstring2 "AB")
         cd (pstring2 "CD")
@@ -313,7 +313,7 @@
       (= '(("AB" "CD") . ("F")) (parser (chop "AB \tCDF")))
       )))
 
-(detest t-between ()
+(deftest t-between ()
   (let (pquote (pchar2 "'")
         quoted-int (between pquote pint pquote))
     (check
@@ -321,7 +321,7 @@
       (= '(NIL "Expecting '''. Got '1'" . ("1" "2" "3" "4")) (quoted-int (chop "1234")))
       )))
 
-(detest t-sep-by ()
+(deftest t-sep-by ()
   (let (comma (pchar2 ",")
         digit (sep-by parse-digit comma)
         digit+ (sep-by+ parse-digit comma))
@@ -336,7 +336,7 @@
       (= '((NIL) . ("Z" ";")) (digit (chop "Z;")))
       )))
 
-(detest t-parser ()
+(deftest t-parser ()
   (combine-results
     (t-pchar)
     (t-pchar2)

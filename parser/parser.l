@@ -264,6 +264,21 @@
 (de sep-by (P PSep)
   (or-p (sep-by+ P PSep) (return-p NIL)))
 
+(de and-p-drop-left2 (P1 P2)
+  (map-p2 'cadr (and-p2 P1 P2)))
+
+(de and-p-drop-right2 (P1 P2)
+  (map-p2 'car (and-p2 P1 P2)))
+
+(de between (P1 P2 P3)
+  (and-p-drop-right2 (and-p-drop-left2 P1 P2) P3))
+
+(de sep-by2+ (P PSep)
+  (and-p2 P (many2 (and-p-drop-left2 PSep P))))
+
+(de sep-by2 (P PSep)
+  (or-p2 (sep-by2+ P PSep) (return-p2 NIL)))
+
 (de bind-p (@Fun @P)
   (fill '((Chars)
           (let Res ('@P Chars)
