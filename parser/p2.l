@@ -15,51 +15,103 @@
 (dm r> () (: RInp))
 
 (class +PErr)
-(dm T (Msg)
-  (=: Msg Msg))
-(dm m> () (: Msg))
+(dm T (Label Err Pos)
+  (=: Label Label)
+  (=: Err Err)
+  (=: Pos Pos))
+(dm m> ()
+  (text "[r:@1,c:@2] Error while parsing @3. @4"
+    (r> (: Pos)) (c> (: Pos)) (: Label) (: Err)))
 
-(de satisfy (@Pred)
+(class +PPos)
+(dm T (Row Col)
+  (=: Row Row)
+  (=: Col Col))
+(dm r> () (: Row))
+(dm r+> () (inc (: Row)))
+(dm c> () (: Col))
+(dm c+> () (inc (: Col)))
+
+(class +PInp)
+(dm T (Inp Pos)
+  (=: Inp Inp)
+  (=: Pos Pos))
+(dm pos> () (: Pos))
+(dm car> () (car (: Inp)))
+(dm cdr> ()
+  (let (Next (cadr (: Inp))
+        R (if (= Next "\n") (r+> (: Pos)) (r> (: Pos)))
+        C (cond
+            ((= Next "\n") 0)
+            ((= Next NIL) (c> (: Pos)))
+            (T (c+> (: Pos)))))
+    (prinl R " " C " " (cdr (: Inp)))
+    (new '(+PInp) (cdr (: Inp)) (new '(+PPos) R C))))
+
+# helper function for tests
+(de pinp (Str)
+  (new '(+PInp) (chop Str) (new '(+PPos) 1 1)))
+
+# helper function for tests
+(de perr? (PRes)
+  (not (= NIL (isa '+PErr PRes))))
+
+(de err-parse (Label Inp X)
+  (new '(+PErr) Label (text "Unexpected '@1'" X) (pos> Inp)))
+
+(de err-no-inp (Label Inp)
+  (new '(+PErr) Label "No more Input" (pos> Inp)))
+
+# test helper
+(de err-help (R C Label X)
+  (let Inp (new '(+PInp) NIL (new '(+PPos) R C))
+    (m> (if X
+          (err-parse Label Inp X)
+          (err-no-inp Label Inp)))))
+
+(de satisfy (@Pred @Label)
   (fill
     '((Inp)
-      (let X (car Inp)
+      (let X (car> Inp)
         (cond
-          ((= X NIL) (new '(+PErr) "No more input"))
-          (('@Pred X) (new '(+PSuc) X (cdr Inp)))
-          (T (new '(+PErr) (text "Unexpected '@1'" X))))))))
+          ((= X NIL) (err-no-inp @Label Inp))
+          (('@Pred X) (new '(+PSuc) X (cdr> Inp)))
+          (T (err-parse @Label Inp X)))))))
 
 (de charp (@C)
-  (satisfy (fill '((X) (= X @C)))))
+  (satisfy (fill '((X) (= X @C))) "char"))
 
 (let pA (charp "A")
-  (test "A" (v> (pA '("A"))))
-  (test T (not (= NIL (isa '+PErr (pA '("B"))))))
-  (test T (not (= NIL (isa '+PErr (pA '(""))))))
+  (test "A" (v> (pA (pinp "A"))))
+  (test T (perr? (pA (pinp "B"))))
+  (test (err-help 1 1 "char" "B") (m> (pA (pinp "B"))))
+  (test T (perr? (pA (pinp ""))))
+  (test (err-help 1 1 "char") (m> (pA (pinp ""))))
   )
 
-(def 'digitp (satisfy '((X) (member X *Digit))))
+(def 'digitp (satisfy '((X) (member X *Digit)) "digit"))
 
-(test "1" (v> (digitp '("1"))))
+(test "1" (v> (digitp (pinp "1"))))
 
-(def 'wsp (satisfy '((X) (member X *Ws))))
+(def 'wsp (satisfy '((X) (member X *Ws)) "whitespace"))
 
-(test " " (v> (wsp '(" "))))
+(test " " (v> (wsp (pinp " "))))
 
-(def 'lowcp (satisfy '((X) (member X *Lowcase))))
+(def 'lowcp (satisfy '((X) (member X *Lowcase)) "lowercase"))
 
-(test "g" (v> (lowcp '("g"))))
+(test "g" (v> (lowcp (pinp "g"))))
 
-(def 'uppcp (satisfy '((X) (member X *Uppcase))))
+(def 'uppcp (satisfy '((X) (member X *Uppcase)) "uppercase"))
 
-(test "G" (v> (uppcp '("G"))))
+(test "G" (v> (uppcp (pinp "G"))))
 
-(def 'alphap (satisfy '((X) (member X *Alpha))))
+(def 'alphap (satisfy '((X) (member X *Alpha)) "alphanumeric"))
 
-(test "G" (v> (alphap '("G"))))
-(test "g" (v> (alphap '("g"))))
-(test "1" (v> (alphap '("1"))))
+(test "G" (v> (alphap (pinp "G"))))
+(test "g" (v> (alphap (pinp "g"))))
+(test "1" (v> (alphap (pinp "1"))))
 
-(def 'hexp (satisfy '((X) (member X *Hex))))
+(def 'hexp (satisfy '((X) (member X *Hex)) "hexadecimal"))
 
 (de andp-comb (V1 V2)
   (append (if (atom V1) (list V1) V1)
@@ -81,8 +133,8 @@
       pC (charp "C")
       pAB (andp pA pB)
       pABC (andp (andp pA pB) pC))
-  (test '("A" "B") (v> (pAB (chop "AB"))))
-  (test '("A" "B" "C") (v> (pABC (chop "ABC"))))
+  (test '("A" "B") (v> (pAB (pinp "AB"))))
+  (test '("A" "B" "C") (v> (pABC (pinp "ABC"))))
   )
 
 (de orp (@P1 @P2)
@@ -96,8 +148,8 @@
 (let (pA (charp "A")
       pB (charp "B")
       pAB (orp pA pB))
-  (test "A" (v> (pAB (chop "AB"))))
-  (test "B" (v> (pAB (chop "BA"))))
+  (test "A" (v> (pAB (pinp "AB"))))
+  (test "B" (v> (pAB (pinp "BA"))))
   )
 
 (de reduce (Fun Lst Init)
@@ -132,7 +184,7 @@
     (apply 'sequencep (mapcar 'charp (chop Str)))))
 
 (let abc (stringp "abc")
-  (test "abc" (v> (abc (chop "abcd"))))
+  (test "abc" (v> (abc (pinp "abcd"))))
   )
 
 (de manyp-comb (V1 V2)
@@ -149,20 +201,20 @@
 
 (let (pA (charp "A")
       mA (manyp pA))
-  (test '() (v> (mA (chop "B"))))
-  (test '("A") (v> (mA (chop "A"))))
-  (test '("A") (v> (mA (chop "A."))))
-  (test '("A" "A") (v> (mA (chop "AA"))))
-  (test '("A" "A") (v> (mA (chop "AA."))))
-  (test '("A" "A" "A") (v> (mA (chop "AAA"))))
+  (test '() (v> (mA (pinp "B"))))
+  (test '("A") (v> (mA (pinp "A"))))
+  (test '("A") (v> (mA (pinp "A."))))
+  (test '("A" "A") (v> (mA (pinp "AA"))))
+  (test '("A" "A") (v> (mA (pinp "AA."))))
+  (test '("A" "A" "A") (v> (mA (pinp "AAA"))))
   )
 
 (let (pAB (stringp "AB")
       mAB (manyp pAB))
-  (test '() (v> (mAB (chop "B"))))
-  (test '() (v> (mAB (chop "AD"))))
-  (test '("AB") (v> (mAB (chop "AB."))))
-  (test '("AB" "AB") (v> (mAB (chop "ABAB."))))
+  (test '() (v> (mAB (pinp "B"))))
+  (test '() (v> (mAB (pinp "AD"))))
+  (test '("AB") (v> (mAB (pinp "AB."))))
+  (test '("AB" "AB") (v> (mAB (pinp "ABAB."))))
   )
 
 (de many1p (P)
@@ -171,10 +223,10 @@
 
 (let (pA (charp "A")
       mA (many1p pA))
-  (test T (not (= NIL (isa '+PErr (mA (chop "B"))))))
-  (test '("A") (v> (mA (chop "A."))))
-  (test '("A") (v> (mA (chop "AB."))))
-  (test '("A" "A") (v> (mA (chop "AAB."))))
+  (test T (perr? (mA (pinp "B"))))
+  (test '("A") (v> (mA (pinp "A."))))
+  (test '("A") (v> (mA (pinp "AB."))))
+  (test '("A" "A") (v> (mA (pinp "AAB."))))
   )
 
 (de optp (@P)
@@ -190,19 +242,19 @@
       oA (optp pA)
       oB (optp pB)
       aop (andp oA pB))
-  (test '() (v> (oA (chop "B"))))
-  (test "A" (v> (oA (chop "A"))))
-  (test '("A" "B") (v> (aop (chop "AB"))))
-  (test '(NIL "B") (v> (aop (chop "B"))))
+  (test '() (v> (oA (pinp "B"))))
+  (test "A" (v> (oA (pinp "A"))))
+  (test '("A" "B") (v> (aop (pinp "AB"))))
+  (test '(NIL "B") (v> (aop (pinp "B"))))
   )
 
 (let (mP (many1p 'digitp)
       strp (fp 'list (fp 'pack mP))
       nump (fp 'list (fp 'format mP))
       numlp (mapp 'format mP))
-  (test '("123") (v> (strp (chop "123"))))
-  (test '(123) (v> (nump (chop "123"))))
-  (test '(1 2 3) (v> (numlp (chop "123"))))
+  (test '("123") (v> (strp (pinp "123"))))
+  (test '(123) (v> (nump (pinp "123"))))
+  (test '(1 2 3) (v> (numlp (pinp "123"))))
   )
 
 (de droprp (@P1 @P2)
@@ -236,33 +288,44 @@
       pdr2 (droprp AB (charp ","))
       pdl2 (droplp (charp ",") AB)
       btw (betweenp (charp "(") AB (charp ")")))
-  (test "A" (v> (pdr (chop "A,"))))
-  (test "A" (v> (pdl (chop ",A"))))
-  (test '("A" "B") (v> (pdr2 (chop "AB,"))))
-  (test '("A" "B") (v> (pdl2 (chop ",AB"))))
-  (test '("A" "B") (v> (btw (chop "(AB)"))))
+  (test "A" (v> (pdr (pinp "A,"))))
+  (test "A" (v> (pdl (pinp ",A"))))
+  (test '("A" "B") (v> (pdr2 (pinp "AB,"))))
+  (test '("A" "B") (v> (pdl2 (pinp ",AB"))))
+  (test '("A" "B") (v> (btw (pinp "(AB)"))))
   )
 
-(de sepbyp (P Psep)
-  (manyp (droplp (optp Psep) P)))
+(de sepbyp (@P @Psep)
+  (fill
+    '((Inp)
+       (let R1 ('@P Inp)
+         (if (isa '+PSuc R1)
+           (let R2 ((manyp (droplp '@Psep '@P)) (r> R1))
+             (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
+           (new '(+PSuc) '() Inp))))))
 
 (let sp (sepbyp 'digitp (charp ";"))
-  (test '() (v> (sp (chop "A."))))
-  (test '("1") (v> (sp (chop "1."))))
-  (test '("1" "2") (v> (sp (chop "1;2."))))
-  (test '("1" "2" "3") (v> (sp (chop "1;2;3."))))
+  (test '() (v> (sp (pinp "A."))))
+  (test '("1") (v> (sp (pinp "1."))))
+  (test '("1" "2") (v> (sp (pinp "1;2."))))
+  (test '("1" "2" "3") (v> (sp (pinp "1;2;3."))))
   )
 
-(de sepby1p (P Psep)
-  (fp '((X) (cons (car X) (cadr X)))
-      (andp P (sepbyp P Psep))))
+(de sepby1p (@P @Psep)
+  (fill
+    '((Inp)
+       (let R1 ('@P Inp)
+         (if (isa '+PSuc R1)
+           (let R2 ((manyp (droplp '@Psep '@P)) (r> R1))
+             (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
+           R1)))))
 
 (let sp (sepby1p 'digitp (charp ";"))
-  (test T (not (= NIL (isa '+PErr (sp (chop "A"))))))
-  (test T (not (= NIL (isa '+PErr (sp (chop "A."))))))
-  (test '("1") (v> (sp (chop "1."))))
-  (test '("1" "2") (v> (sp (chop "1;2."))))
-  (test '("1" "2" "3") (v> (sp (chop "1;2;3."))))
+  (test T (perr? (sp (pinp "A"))))
+  (test T (perr? (sp (pinp "A."))))
+  (test '("1") (v> (sp (pinp "1."))))
+  (test '("1" "2") (v> (sp (pinp "1;2."))))
+  (test '("1" "2" "3") (v> (sp (pinp "1;2;3."))))
   )
 
 (def 'intp
@@ -271,9 +334,9 @@
       (andp (optp (orp (charp "+") (charp "-")))
             (many1p 'digitp)))))
 
-(test '(123) (v> (intp (chop "123A"))))
-(test '(123) (v> (intp (chop "+123A"))))
-(test '(-123) (v> (intp (chop "-123A"))))
+(test '(123) (v> (intp (pinp "123A"))))
+(test '(123) (v> (intp (pinp "+123A"))))
+(test '(-123) (v> (intp (pinp "-123A"))))
 
 ###
 
@@ -290,15 +353,15 @@
 (def 'jfalse (fp 'any (stringp "false")))
 (def 'jbool (orp 'jtrue 'jfalse))
 
-(test 'null (v> (jnull (chop "null"))))
-(test 'true (v> (jtrue (chop "true"))))
-(test 'false (v> (jfalse (chop "false"))))
+(test 'null (v> (jnull (pinp "null"))))
+(test 'true (v> (jtrue (pinp "true"))))
+(test 'false (v> (jfalse (pinp "false"))))
 
 (def 'junescaped
   (satisfy '((X) (not (or (= X "\\") (= X "\""))))))
 
-(test "a" (v> (junescaped (chop "a"))))
-(test T (not (= NIL (isa '+PErr (junescaped "\\")))))
+(test "a" (v> (junescaped (pinp "a"))))
+(test T (perr? (junescaped (pinp "\\"))))
 
 (setq *Jesc
   (list
@@ -316,8 +379,8 @@
   (apply 'choicep
          (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc)))
 
-(test "\\" (v> (jescaped (chop "\\\\"))))
-(test "\t" (v> (jescaped (chop "\\t"))))
+(test "\\" (v> (jescaped (pinp "\\\\"))))
+(test "\t" (v> (jescaped (pinp "\\t"))))
 
 (def 'junicode
   (let (bl (charp "\\")
@@ -326,45 +389,45 @@
         code (fp 'char (fp 'hex (fp 'pack hx))))
     (droplp bl (droplp uc code))))
 
-(test (char (hex "263A")) (v> (junicode (chop "\\u263A"))))
+(test (char (hex "263A")) (v> (junicode (pinp "\\u263A"))))
 
 (def 'jchar (choicep 'junescaped 'jescaped 'junicode))
 
-(test "a" (v> (jchar (chop "ab"))))
-(test "\\" (v> (jchar (chop "\\\\"))))
-(test (char (hex "263A")) (v> (jchar (chop "\\u263A"))))
+(test "a" (v> (jchar (pinp "ab"))))
+(test "\\" (v> (jchar (pinp "\\\\"))))
+(test (char (hex "263A")) (v> (jchar (pinp "\\u263A"))))
 
 (let ajc (andp 'jchar 'jchar)
-  (test '("a" "\\") (v> (ajc (chop "a\\\\"))))
-  (test '("a" "b") (v> (ajc (chop "ab"))))
+  (test '("a" "\\") (v> (ajc (pinp "a\\\\"))))
+  (test '("a" "b") (v> (ajc (pinp "ab"))))
   )
 
 (let ajc (sequencep 'jchar 'jchar)
-  (test '("a" "\\") (v> (ajc (chop "a\\\\"))))
-  (test '("a" "b") (v> (ajc (chop "ab"))))
+  (test '("a" "\\") (v> (ajc (pinp "a\\\\"))))
+  (test '("a" "b") (v> (ajc (pinp "ab"))))
   )
 
 (let ajc (manyp 'junescaped)
-  (test '() (v> (ajc (chop "\\"))))
-  (test '("a") (v> (ajc (chop "a"))))
-  (test '("a" "b") (v> (ajc (chop "ab"))))
+  (test '() (v> (ajc (pinp "\\"))))
+  (test '("a") (v> (ajc (pinp "a"))))
+  (test '("a" "b") (v> (ajc (pinp "ab"))))
   )
 
 (def 'jmanychar (manyp 'jchar))
 
-(test '("\t") (v> (jmanychar (chop "\\t"))))
-(test '("a" "b") (v> (jmanychar (chop "ab"))))
+(test '("\t") (v> (jmanychar (pinp "\\t"))))
+(test '("a" "b") (v> (jmanychar (pinp "ab"))))
 
 (def 'jstring
   (let (quotep (charp "\"")
         manych (fp 'pack (manyp 'jchar)))
     (droprp (droplp quotep manych) quotep)))
 
-(test "" (v> (jstring (chop "\"\""))))
-(test "a" (v> (jstring (chop "\"a\""))))
-(test "ab" (v> (jstring (chop "\"ab\""))))
-(test "ab\tde" (v> (jstring (chop "\"ab\\tde\""))))
-(test "ab?de" (v> (jstring (chop "\"ab\\u003fde\""))))
+(test "" (v> (jstring (pinp "\"\""))))
+(test "a" (v> (jstring (pinp "\"a\""))))
+(test "ab" (v> (jstring (pinp "\"ab\""))))
+(test "ab\tde" (v> (jstring (pinp "\"ab\\tde\""))))
+(test "ab?de" (v> (jstring (pinp "\"ab\\u003fde\""))))
 
 (de to-num (s int fr se ex)
   (let (exn (format ex)
@@ -402,9 +465,9 @@
     (applyp 'to-num (mapp 'pack tuple))))
 
 (setq *Scl 0)
-(test 0 (v> (jnumber (chop "0"))))
+(test 0 (v> (jnumber (pinp "0"))))
 (setq *Scl 0)
-(test 12 (v> (jnumber (chop "+1.2e-3"))))
+(test 12 (v> (jnumber (pinp "+1.2e-3"))))
 
 (def 'spacesp (manyp 'wsp))
 
@@ -412,19 +475,21 @@
   (append '(T) Lst))
 
 (def 'jarray
-  (let (aleft (droprp (charp "[") 'spacesp)
-        aright (droprp (charp "]") 'spacesp)
+  (let (left (droprp (charp "[") 'spacesp)
+        right (droprp (charp "]") 'spacesp)
         comma (droprp (charp ",") 'spacesp)
         value (droprp 'jvalue 'spacesp)
         values (sepbyp value comma))
-    (fp 'to-array (betweenp aleft values aright))))
+    (fp 'to-array (betweenp left values right))))
 
+# not used
 (de odd (Lst)
   (make
     (for (I . X) Lst
       (unless (= 0 (% I 2))
         (link X)))))
 
+# not used
 (de even (Lst)
   (make
     (for (I . X) Lst
@@ -432,15 +497,15 @@
         (link X)))))
 
 (def 'jobject
-  (let (oleft (droprp (charp "{") 'spacesp)
-        oright (droprp (charp "}") 'spacesp)
+  (let (left (droprp (charp "{") 'spacesp)
+        right (droprp (charp "}") 'spacesp)
         comma (droprp (charp ",") 'spacesp)
         colon (droprp (charp ":") 'spacesp)
         key (droprp 'jstring 'spacesp)
         value (droprp 'jvalue 'spacesp)
         keyval (andp (droprp key colon) value)
         keyvals (sepbyp keyval comma))
-    (betweenp oleft keyvals oright)))
+    (betweenp left keyvals right)))
 
 (def 'jvalue
   (choicep
@@ -452,41 +517,56 @@
     'jnull))
 
 (setq *Scl 0)
-(test '(T) (v> (jarray (chop "[ ]"))))
+(test '(T) (v> (jarray (pinp "[ ]"))))
 (test '(T "a" false 12)
-      (v> (jarray (chop "[ \"a\" , false , 12 ]"))))
+      (v> (jarray (pinp "[ \"a\" , false , 12 ]"))))
 (test '(T "ab" (T true 12) "cd")
-      (v> (jarray (chop "[\"ab\",[true,12],\"cd\"]"))))
-(test '() (v> (jobject (chop "{ }"))))
-(test '(("a" false))
-      (v> (jobject (chop "{\"a\":false}"))))
-(test '(("b" null))
-      (v> (jobject (chop "{ \"b\" : null }"))))
-(test '(("b" null) ("c" 12))
-      (v> (jobject (chop "{\"b\":null , \"c\":12}"))))
+      (v> (jarray (pinp "[\"ab\",[true,12],\"cd\"]"))))
+(test T (perr? (jarray (pinp "[\"a\" \"b\"]"))))
+(test (err-help 1 6 NIL "\"") (m> (jarray (pinp "[\"a\" \"b\"]"))))
+(test (err-help 2 5 NIL "\"") (m> (jarray (pinp "[\"a\",\n\"b\" \"c\"]"))))
+(test (err-help 1 6 NIL "\"") (m> (jarray (pinp "[\"a\",[\"c\"23],23]"))))
 
+(setq *Scl 0)
+(test '() (v> (jobject (pinp "{ }"))))
+(test '(("a" false))
+      (v> (jobject (pinp "{\"a\":false}"))))
+(test '(("b" null))
+      (v> (jobject (pinp "{ \"b\" : null }"))))
+(test '(("b" null) ("c" 12))
+      (v> (jobject (pinp "{\"b\":null , \"c\":12}"))))
+(test T (perr? (jobject (pinp "{\"b\":null \"c\":12}"))))
+(test (err-help 1 11 NIL "\"") (m> (jobject (pinp "{\"b\":null \"c\":12}"))))
+(test (err-help 1 11 NIL "\"") (m> (jobject (pinp "{\"a\":{\"b\":null \"c\":12}}"))))
+
+(setq *Scl 0)
 (test '(T "a" (("b" false)))
-      (v> (jarray (chop "[\"a\",{\"b\":false}]"))))
+      (v> (jarray (pinp "[\"a\",{\"b\":false}]"))))
 (test '(("a" (T false)))
-      (v> (jobject (chop "{\"a\":[false]}"))))
+      (v> (jobject (pinp "{\"a\":[false]}"))))
 (test '(("a" (T false 1)))
-      (v> (jobject (chop "{\"a\":[false,1]}"))))
+      (v> (jobject (pinp "{\"a\":[false,1]}"))))
 (test '(("a" (T false (("b" 1)))))
-      (v> (jobject (chop "{\"a\":[false,{\"b\":1}]}"))))
+      (v> (jobject (pinp "{\"a\":[false,{\"b\":1}]}"))))
 
 (de to-chars (file)
   (chop (in file (till NIL T))))
 
-(setq ex01 (to-chars "ex01.json"))
-(setq ex02 (to-chars "ex02.json"))
-(setq ex03 (to-chars "ex03.json"))
-(setq ex04 (to-chars "ex04.json"))
-(setq ex05 (to-chars "ex05.json"))
+(de to-pinp (file)
+  (new '(+PInp) (to-chars file) 1 1))
+
+(setq ex01 (to-pinp "ex01.json"))
+(setq ex02 (to-pinp "ex02.json"))
+(setq ex03 (to-pinp "ex03.json"))
+(setq ex04 (to-pinp "ex04.json"))
+(setq ex05 (to-pinp "ex05.json"))
 
 (de read-json (Source)
   (cond
-    ((info Source) (jvalue (to-chars Source)))
-    ((str? Source) (jvalue (chop Source)))
+    ((isa '+PInp Source) (jvalue Source))
+    ((info Source) (jvalue (to-pinp Source)))
+    ((str? Source) (jvalue (new '(+PInp) (chop Source) 1 1)))
+    ((lst? Source) (jvalue (new '(+PInp) Source 1 1)))
     (T (throw 'JsonParseError "cannot read source"))))
 
 (setq *Json-pretty-print NIL)
