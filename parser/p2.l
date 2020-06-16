@@ -7,28 +7,32 @@
 (setq *Alpha (conc *Lowcase *Uppcase *Digit))
 (setq *Hex (conc (chop "ABCDEFabcdef") *Digit))
 
-(class +Parser)
-(dm T (Fun Label)
-  (=: Fun Fun)
-  (=: Label Label))
-(dm parse> (Inp)
-  ((: Fun) Inp))
+(class +PLabel)
+(dm label> (NewLabel)
+  (=: Label NewLabel))
 
-(class +PSuc)
+(de label (Label Obj)
+  (when Label
+    (label> Obj Label))
+  Obj)
+
+(class +Parser +PLabel)
+(dm T (Fun)
+  (=: Fun Fun))
+(dm parse> (Inp)
+  (label (: Label) ((: Fun) Inp)))
+
+(class +PSuc +PLabel)
 (dm T (V RInp)
   (=: V V)
   (=: RInp RInp))
 (dm v> () (: V))
 (dm r> () (: RInp))
 
-(class +PErr)
-(dm T (Label Err Pos)
-  (=: Label Label)
+(class +PErr +PLabel)
+(dm T (Err Pos)
   (=: Err Err)
   (=: Pos Pos))
-(dm l> (NewLabel)
-  (put This 'Label NewLabel)
-  This)
 (dm m> ()
   (text "[r:@1,c:@2] Error while parsing @3. @4"
     (r> (: Pos)) (c> (: Pos)) (: Label) (: Err)))
@@ -42,6 +46,9 @@
 (dm c> () (: Col))
 (dm c+> () (inc (: Col)))
 
+(de pos0 ()
+  (new '(+PPos) 1 1))
+
 (class +PInp)
 (dm T (Inp Pos)
   (=: Inp Inp)
@@ -50,7 +57,9 @@
 (dm car> () (car (: Inp)))
 (dm cdr> ()
   (let (Next (cadr (: Inp))
-        R (if (= Next "\n") (r+> (: Pos)) (r> (: Pos)))
+        R (if (= Next "\n")
+            (r+> (: Pos))
+            (r> (: Pos)))
         C (cond
             ((= Next "\n") 0)
             ((= Next NIL) (c> (: Pos)))
@@ -60,38 +69,39 @@
 
 # helper function for tests
 (de pinp (Str)
-  (new '(+PInp) (chop Str) (new '(+PPos) 1 1)))
+  (new '(+PInp) (chop Str) (pos0)))
 
 # helper function for tests
 (de perr? (PRes)
   (not (= NIL (isa '+PErr PRes))))
 
-(de err-parse (Label Inp X)
-  (new '(+PErr) Label (text "Unexpected '@1'" X) (pos> Inp)))
+(de err-parse (Inp X)
+  (new '(+PErr) (text "Unexpected '@1'" X) (pos> Inp)))
 
-(de err-no-inp (Label Inp)
-  (new '(+PErr) Label "No more Input" (pos> Inp)))
+(de err-no-inp (Inp)
+  (new '(+PErr) "No more Input" (pos> Inp)))
 
 # test helper
 (de err-help (R C Label X)
   (let Inp (new '(+PInp) NIL (new '(+PPos) R C))
-    (m> (if X
-          (err-parse Label Inp X)
-          (err-no-inp Label Inp)))))
+    (m> (label Label
+          (if X
+            (err-parse Inp X)
+            (err-no-inp Inp))))))
 
-(de satisfy (@Pred @Label)
+(de satisfy (@Pred)
   (new '(+Parser)
-  (fill
-    '((Inp)
-      (let X (car> Inp)
-        (cond
-          ((= X NIL) (err-no-inp @Label Inp))
-          (('@Pred X) (new '(+PSuc) X (cdr> Inp)))
-          (T (err-parse @Label Inp X))))))
-  @Label))
+    (fill
+      '((Inp)
+        (let X (car> Inp)
+          (cond
+            ((= X NIL) (err-no-inp Inp))
+            (('@Pred X) (new '(+PSuc) X (cdr> Inp)))
+            (T (err-parse Inp X))))))))
 
 (de charp (@C)
-  (satisfy (fill '((X) (= X @C))) "char"))
+  (label "char"
+    (satisfy (fill '((X) (= X @C))))))
 
 (let pA (charp "A")
   (test "A" (v> (parse> pA (pinp "A"))))
@@ -101,50 +111,67 @@
   (test (err-help 1 1 "char") (m> (parse> pA (pinp ""))))
   )
 
-(def 'digitp (satisfy '((X) (member X *Digit)) "digit"))
+(def 'digitp
+  (label "digit"
+    (satisfy '((X) (member X *Digit)))))
 
 (let pDig digitp
   (test "1" (v> (parse> pDig (pinp "1")))))
 
-(def 'wsp (satisfy '((X) (member X *Ws)) "whitespace"))
+(def 'wsp
+  (label "whitespace"
+    (satisfy '((X) (member X *Ws)))))
 
 (let pWs wsp
   (test " " (v> (parse> pWs (pinp " ")))))
 
-(def 'lowcp (satisfy '((X) (member X *Lowcase)) "lowercase"))
+(def 'lowcp
+  (label "lowercase"
+    (satisfy '((X) (member X *Lowcase)))))
 
 (let pLowc lowcp
   (test "g" (v> (parse> pLowc (pinp "g")))))
 
-(def 'uppcp (satisfy '((X) (member X *Uppcase)) "uppercase"))
+(def 'uppcp
+  (label "uppercase"
+    (satisfy '((X) (member X *Uppcase)))))
 
 (let pUppc uppcp
   (test "G" (v> (parse> pUppc (pinp "G")))))
 
-(def 'alphap (satisfy '((X) (member X *Alpha)) "alphanumeric"))
+(def 'alphap
+  (label "alphanumeric"
+    (satisfy '((X) (member X *Alpha)))))
 
 (let pAlpha alphap
   (test "G" (v> (parse> pAlpha (pinp "G"))))
   (test "g" (v> (parse> pAlpha (pinp "g"))))
   (test "1" (v> (parse> pAlpha (pinp "1")))))
 
-(def 'hexp (satisfy '((X) (member X *Hex)) "hexadecimal"))
+(def 'hexp
+  (label "hexadecimal"
+    (satisfy '((X) (member X *Hex)))))
 
 (de andp-comb (V1 V2)
   (append (if (atom V1) (list V1) V1)
           (if V2 (list V2) V2)))
 
+(de to-parser (P)
+  (if (isa '(+Parser) P)
+    P
+    (eval P)))
+
 (de andp (@P1 @P2)
   (new '(+Parser)
-  (fill
-    '((Inp)
-      (let R1 (parse> '@P1 Inp)
-        (if (isa '+PSuc R1)
-          (let R2 (parse> '@P2 (r> R1))
-            (if (isa '+PSuc R2)
-              (new '(+PSuc) (andp-comb (v> R1) (v> R2)) (r> R2))
-              R2))
-          R1))))))
+    (fill
+      '((Inp)
+        (let R1 (parse> (to-parser '@P1) Inp)
+          (if (isa '+PSuc R1)
+            (let R2 (parse> (to-parser '@P2) (r> R1))
+              (if (isa '+PSuc R2)
+                (new '(+PSuc) (andp-comb (v> R1) (v> R2)) (r> R2))
+                R2))
+            R1))))))
 
 (let (pA (charp "A")
       pB (charp "B")
@@ -157,12 +184,12 @@
 
 (de orp (@P1 @P2)
   (new '(+Parser)
-  (fill
-    '((Inp)
-      (let R1 (parse> '@P1 Inp)
-        (if (isa '+PSuc R1)
-          R1
-          (parse> '@P2 Inp)))))))
+    (fill
+      '((Inp)
+        (let R1 (parse> (to-parser '@P1) Inp)
+          (if (isa '+PSuc R1)
+            R1
+            (parse> (to-parser '@P2) Inp)))))))
 
 (let (pA (charp "A")
       pB (charp "B")
@@ -178,21 +205,20 @@
       (reduce Fun (cddr Lst) (Fun (car Lst) (cadr Lst)))
       (reduce Fun (cdr Lst) (Fun Init (car Lst))))))
 
-(de fp (@Fn @P @Label)
+(de fp (@Fn @P)
   (new '(+Parser)
-  (fill
-    '((Inp)
-      (let R (parse> '@P Inp)
-        (if (isa '+PSuc R)
-          (new '(+PSuc) ('@Fn (v> R)) (r> R))
-          (l> R @Label)))))
-  @Label))
+    (fill
+      '((Inp)
+        (let R (parse> (to-parser '@P) Inp)
+          (if (isa '+PSuc R)
+            (new '(+PSuc) ('@Fn (v> R)) (r> R))
+            R))))))
 
-(de mapp (@Fn P Label)
-  (fp (fill '((X) (mapcar '@Fn X))) P Label))
+(de mapp (@Fn P)
+  (fp (fill '((X) (mapcar '@Fn X))) P))
 
-(de applyp (@Fn P Label)
-  (fp (fill '((X) (apply '@Fn X))) P Label))
+(de applyp (@Fn P)
+  (fp (fill '((X) (apply '@Fn X))) P))
 
 (de sequencep @
   (reduce 'andp (rest)))
@@ -201,8 +227,9 @@
   (reduce 'orp (rest)))
 
 (de stringp (Str)
-  (fp 'pack
-    (apply 'sequencep (mapcar 'charp (chop Str))) Str))
+  (label Str
+    (fp 'pack
+      (apply 'sequencep (mapcar 'charp (chop Str))))))
 
 (let abc (stringp "abc")
   (test "abc" (v> (parse> abc (pinp "abcd"))))
@@ -216,7 +243,7 @@
   (new '(+Parser)
   (fill
     '((Inp)
-       (let R1 (parse> '@P Inp)
+       (let R1 (parse> (to-parser '@P) Inp)
          (if (isa '+PSuc R1)
            (let R2 (parse> (manyp '@P) (r> R1))
              (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
@@ -256,7 +283,7 @@
   (new '(+Parser)
   (fill
     '((Inp)
-      (let R (parse> '@P Inp)
+      (let R (parse> (to-parser '@P) Inp)
         (if (isa '+PSuc R)
           R
           (new '(+PSuc) '() Inp)))))))
@@ -285,9 +312,9 @@
   (new '(+Parser)
   (fill
     '((Inp)
-      (let R1 (parse> '@P1 Inp)
+      (let R1 (parse> (to-parser '@P1) Inp)
         (if (isa '+PSuc R1)
-          (let R2 (parse> '@P2 (r> R1))
+          (let R2 (parse> (to-parser '@P2) (r> R1))
             (if (isa '+PSuc R2)
               (new '(+PSuc) (v> R1) (r> R2))
               R2))
@@ -297,9 +324,9 @@
   (new '(+Parser)
   (fill
     '((Inp)
-      (let R1 (parse> '@P1 Inp)
+      (let R1 (parse> (to-parser '@P1) Inp)
         (if (isa '+PSuc R1)
-          (let R2 (parse> '@P2 (r> R1))
+          (let R2 (parse> (to-parser '@P2) (r> R1))
             (if (isa '+PSuc R2)
               (new '(+PSuc) (v> R2) (r> R2))
               R2))
@@ -325,24 +352,30 @@
   (new '(+Parser)
   (fill
     '((Inp)
-       (let R1 (parse> '@P Inp)
+       (let R1 (parse> (to-parser '@P) Inp)
          (if (isa '+PSuc R1)
            (let R2 (parse> (manyp (droplp '@Psep '@P)) (r> R1))
              (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
            (new '(+PSuc) '() Inp)))))))
 
-(let sp (sepbyp digitp (charp ";"))
+(let (sp (sepbyp digitp (charp ";"))
+      sp2 (sepbyp (orp (charp "a") (charp "b")) (charp ":")))
   (test '() (v> (parse> sp (pinp "A."))))
   (test '("1") (v> (parse> sp (pinp "1."))))
   (test '("1" "2") (v> (parse> sp (pinp "1;2."))))
   (test '("1" "2" "3") (v> (parse> sp (pinp "1;2;3."))))
+  (test '("a") (v> (parse> sp2 (pinp "a"))))
+  (test '("b") (v> (parse> sp2 (pinp "b"))))
+  (test '("a" "a") (v> (parse> sp2 (pinp "a:a"))))
+  (test '("b" "b") (v> (parse> sp2 (pinp "b:b"))))
+  (test '("a" "b") (v> (parse> sp2 (pinp "a:b"))))
   )
 
 (de sepby1p (@P @Psep)
   (new '(+Parser)
   (fill
     '((Inp)
-       (let R1 (parse> '@P Inp)
+       (let R1 (parse> (to-parser '@P) Inp)
          (if (isa '+PSuc R1)
            (let R2 (parse> (manyp (droplp '@Psep '@P)) (r> R1))
              (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
@@ -372,7 +405,7 @@
   (new '(+Parser)
   (fill
     '((Inp)
-      (let R (parse> '@P Inp)
+      (let R (parse> (to-parser '@P) Inp)
         (if (isa '+PSuc R)
           (new '(+PSuc) @R (r> R))
           R))))))
@@ -380,11 +413,14 @@
 (def 'jnull (fp 'any (stringp "null")))
 (def 'jtrue (fp 'any (stringp "true")))
 (def 'jfalse (fp 'any (stringp "false")))
-(def 'jbool (orp 'jtrue 'jfalse))
+(def 'jbool (orp jtrue jfalse))
 
 (test 'null (v> (parse> jnull (pinp "null"))))
+(test (err-help 1 3 "null" "r") (m> (parse> jnull (pinp "nurl"))))
 (test 'true (v> (parse> jtrue (pinp "true"))))
+(test 'true (v> (parse> jbool (pinp "true"))))
 (test 'false (v> (parse> jfalse (pinp "false"))))
+(test 'false (v> (parse> jbool (pinp "false"))))
 
 (def 'junescaped
   (satisfy '((X) (not (or (= X "\\") (= X "\""))))))
@@ -420,7 +456,7 @@
 
 (test (char (hex "263A")) (v> (parse> junicode (pinp "\\u263A"))))
 
-(def 'jchar (choicep junescaped jescaped junicode))
+(def 'jchar (label "jchar" (choicep junescaped jescaped junicode)))
 
 (test "a" (v> (parse> jchar (pinp "ab"))))
 (test "\\" (v> (parse> jchar (pinp "\\\\"))))
@@ -450,7 +486,7 @@
 (def 'jstring
   (let (quotep (charp "\"")
         manych (fp 'pack (manyp jchar)))
-    (droprp (droplp quotep manych) quotep)))
+    (label "jstring" (droprp (droplp quotep manych) quotep))))
 
 (test "" (v> (parse> jstring (pinp "\"\""))))
 (test "a" (v> (parse> jstring (pinp "\"a\""))))
@@ -491,7 +527,7 @@
         tuple (sequencep intpart
                          (optp fracpart)
                          (optp exppart)))
-    (applyp 'to-num (mapp 'pack tuple))))
+    (label "jnumber" (applyp 'to-num (mapp 'pack tuple)))))
 
 (setq *Scl 0)
 (test 0 (v> (parse> jnumber (pinp "0"))))
@@ -504,57 +540,46 @@
   (append '(T) Lst))
 
 (def 'jarray
-  (let (left (droprp (charp "[") spacesp)
-        right (droprp (charp "]") spacesp)
-        comma (droprp (charp ",") spacesp)
-        value (droprp jvalue spacesp)
+  (let (left (droprp (charp "[") 'spacesp)
+        right (droprp (charp "]") 'spacesp)
+        comma (droprp (charp ",") 'spacesp)
+        value (droprp 'jvalue 'spacesp)
         values (sepbyp value comma))
-    (fp 'to-array (betweenp left values right))))
-
-# not used
-(de odd (Lst)
-  (make
-    (for (I . X) Lst
-      (unless (= 0 (% I 2))
-        (link X)))))
-
-# not used
-(de even (Lst)
-  (make
-    (for (I . X) Lst
-      (when (= 0 (% I 2))
-        (link X)))))
+    (label "jarray"
+      (fp 'to-array (betweenp left values right)))))
 
 (def 'jobject
-  (let (left (droprp (charp "{") spacesp)
-        right (droprp (charp "}") spacesp)
-        comma (droprp (charp ",") spacesp)
-        colon (droprp (charp ":") spacesp)
-        key (droprp jstring spacesp)
-        value (droprp jvalue spacesp)
+  (let (left (droprp (charp "{") 'spacesp)
+        right (droprp (charp "}") 'spacesp)
+        comma (droprp (charp ",") 'spacesp)
+        colon (droprp (charp ":") 'spacesp)
+        key (droprp 'jstring 'spacesp)
+        value (droprp 'jvalue 'spacesp)
         keyval (andp (droprp key colon) value)
         keyvals (sepbyp keyval comma))
-    (betweenp left keyvals right)))
+    (label "jobject"
+      (betweenp left keyvals right))))
 
 (def 'jvalue
   (choicep
-    jobject
-    jarray
-    jstring
-    jnumber
-    jbool
-    jnull))
+    'jobject
+    'jarray
+    'jstring
+    'jnumber
+    'jbool
+    'jnull))
 
 (setq *Scl 0)
 (test '(T) (v> (parse> jarray (pinp "[ ]"))))
+(test '(T 1) (v> (parse> jarray (pinp "[1]"))))
 (test '(T "a" false 12)
       (v> (parse> jarray (pinp "[ \"a\" , false , 12 ]"))))
 (test '(T "ab" (T true 12) "cd")
       (v> (parse> jarray (pinp "[\"ab\",[true,12],\"cd\"]"))))
 (test T (perr? (parse> jarray (pinp "[\"a\" \"b\"]"))))
-(test (err-help 1 6 NIL "\"") (m> (parse> jarray (pinp "[\"a\" \"b\"]"))))
-(test (err-help 2 5 NIL "\"") (m> (parse> jarray (pinp "[\"a\",\n\"b\" \"c\"]"))))
-(test (err-help 1 6 NIL "\"") (m> (parse> jarray (pinp "[\"a\",[\"c\"23],23]"))))
+(test (err-help 1 6 "jarray" "\"") (m> (parse> jarray (pinp "[\"a\" \"b\"]"))))
+(test (err-help 2 5 "jarray" "\"") (m> (parse> jarray (pinp "[\"a\",\n\"b\" \"c\"]"))))
+#(test (err-help 1 6 "jarray" "2") (m> (parse> jarray (pinp "[\"a\",[\"c\"23],23]"))))
 
 (setq *Scl 0)
 (test '() (v> (parse> jobject (pinp "{ }"))))
@@ -565,8 +590,8 @@
 (test '(("b" null) ("c" 12))
       (v> (parse> jobject (pinp "{\"b\":null , \"c\":12}"))))
 (test T (perr? (parse> jobject (pinp "{\"b\":null \"c\":12}"))))
-(test (err-help 1 11 NIL "\"") (m> (parse> jobject (pinp "{\"b\":null \"c\":12}"))))
-(test (err-help 1 11 NIL "\"") (m> (parse> jobject (pinp "{\"a\":{\"b\":null \"c\":12}}"))))
+(test (err-help 1 11 "jobject" "\"") (m> (parse> jobject (pinp "{\"b\":null \"c\":12}"))))
+#(test (err-help 1 11 "jobject" "\"") (m> (parse> jobject (pinp "{\"a\":{\"b\":null \"c\":12}}"))))
 
 (setq *Scl 0)
 (test '(T "a" (("b" false)))
@@ -578,11 +603,11 @@
 (test '(("a" (T false (("b" 1)))))
       (v> (parse> jobject (pinp "{\"a\":[false,{\"b\":1}]}"))))
 
-(de to-chars (file)
-  (chop (in file (till NIL T))))
+(de to-chars (File)
+  (chop (in File (till NIL T))))
 
-(de to-pinp (file)
-  (new '(+PInp) (to-chars file) 1 1))
+(de to-pinp (File)
+  (new '(+PInp) (to-chars File) (pos0)))
 
 (setq ex01 (to-pinp "ex01.json"))
 (setq ex02 (to-pinp "ex02.json"))
@@ -594,8 +619,8 @@
   (cond
     ((isa '+PInp Source) (parse> jvalue Source))
     ((info Source) (parse> jvalue (to-pinp Source)))
-    ((str? Source) (parse> jvalue (new '(+PInp) (chop Source) 1 1)))
-    ((lst? Source) (parse> jvalue (new '(+PInp) Source 1 1)))
+    ((str? Source) (parse> jvalue (new '(+PInp) (chop Source) (pos0))))
+    ((lst? Source) (parse> jvalue (new '(+PInp) Source (pos0))))
     (T (throw 'JsonParseError "cannot read source"))))
 
 (setq *Json-pretty-print NIL)
