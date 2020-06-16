@@ -1,9 +1,11 @@
 ### Unit test library
 (symbols 'unit 'pico)
 
-(local) *TestColor *TestName
+(local) *TestColor *TestName *TestPassMark *TestFailMark
 (setq *TestColor T)
 (setq *TestName NIL)
+(setq *TestPassMark (char (hex "2714")))
+(setq *TestFailMark (char (hex "2718")))
 
 (local) color prin-color prin-red prin-green
 
@@ -23,8 +25,10 @@
 
 (local) report-result check combine-results deftest
 
-(de report-result (Res Form)
-  (if Res (prin-green "pass") (prin-red "FAIL"))
+(de report-result (Result Form)
+  (if Result
+    (prin-green *TestPassMark)
+    (prin-red *TestFailMark))
   (prin " ... ")
   (print *TestName)
   (prin " : ")
@@ -32,7 +36,8 @@
   Res)
 
 (de check Forms
-  (full (mapcar '((F) (report-result (eval F) F)) Forms)))
+  (let report-fn '((F) (report-result (eval F) F))
+    (full (mapcar report-fn Forms))))
 
 (de combine-results @
   (full (rest)))
