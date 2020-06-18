@@ -1,89 +1,151 @@
+# combinatory parser
+(symbols 'parser 'pico)
+
 (setq *Lowcase (make (for I 26 (link (char (+ 96 I))))))
 (setq *Uppcase (mapcar uppc *Lowcase))
-(setq *Digits (mapcar format (range 0 9)))
-(setq *Whitespace (chop " \t\n\r"))
+(setq *Digit (mapcar format (range 0 9)))
+(setq *Ws (chop " \t\n\r"))
+(setq *Alpha (conc *Lowcase *Uppcase *Digit))
+(setq *Hex (conc (chop "ABCDEFabcdef") *Digit))
 
-(class +PSuc)
-(dm T (Val RestInp)
-  (=: Val Val)
-  (=: RestInp RestInp))
-(dm str> ()
-  (text "@1" (: Val)))
+(class +PLabel)
+(dm label> (NewLabel)
+  (=: Label NewLabel))
+#  (when NewLabel
+#    (let L (: Label)
+#      (if L
+#        (=: Label (pack NewLabel " => " L))
+#        (=: Label NewLabel)))))
 
-(class +PFail)
-(dm T (Label Err)
-  (=: Label Label)
-  (=: Err Err))
-(dm str> ()
-  (text "Error parsing @1\n@2" (: Label) (: Err)))
+(de label (Label Obj)
+  (when Label
+    (label> Obj Label))
+  Obj)
 
-(de satisfy (@Pred @Label)
-  (fill '((Inp)
-          (if (= Inp NIL)
-            (new '(+PFail) @Label "No more input")
-            (let First (car Inp)
-              (if ('@Pred First)
-                (new '(+PSuc) First (cdr Inp))
-                (new '(+PFail) @Label (text "Unexpected '@1'" First))))))))
+(class +Parser +PLabel)
+(dm T (Fun)
+  (=: Fun Fun))
+(dm parse> (Inp)
+  (label (: Label) ((: Fun) Inp)))
 
-(de pchar3 (@Char)
-  (satisfy (fill '((First) (= First @Char))) (text "@1" @Char)))
+(class +PSuc +PLabel)
+(dm T (V RInp)
+  (=: V V)
+  (=: RInp RInp))
+(dm v> () (: V))
+(dm r> () (: RInp))
 
-(def 'digit (satisfy '((X) (member X *Digits)) "digit"))
-(def 'ws (satisfy '((X) (member X *Whitespace)) "whitespace"))
+(class +PErr +PLabel)
+(dm T (Err Pos)
+  (=: Err Err)
+  (=: Pos Pos))
+(dm m> ()
+  (text "[r:@1,c:@2] Error while parsing @3. @4"
+    (r> (: Pos)) (c> (: Pos)) (: Label) (: Err)))
 
-(de pchar (Char Chars)
-  (let C (car Chars)
-    (cond
-      ((= C NIL) (cons NIL (text "No more input") NIL))
-      ((= C Char) (cons (list C) (cdr Chars)))
-      (T (cons NIL (text "Expecting '@1'. Got '@2'" Char C) Chars)))))
+(class +PPos)
+(dm T (Row Col)
+  (=: Row Row)
+  (=: Col Col))
+(dm r> () (: Row))
+(dm r+> () (inc (: Row)))
+(dm c> () (: Col))
+(dm c+> () (inc (: Col)))
 
-(de pchar2 (@Char)
-  (fill '((Chars) (pchar @Char Chars))))
+(de pos0 ()
+  (new '(+PPos) 1 1))
 
-(de and-p (@Parser1 @Parser2)
-  (fill
-    '((Chars)
-      (let Res1 ('@Parser1 Chars)
-        (if (car Res1)
-          (let Res2 ('@Parser2 (cdr Res1))
-            (if (car Res2)
-              (cons (append (car Res1) (car Res2)) (cdr Res2))
-              Res2))
-          Res1)))))
+(class +PInp)
+(dm T (Inp Pos)
+  (=: Inp Inp)
+  (=: Pos Pos))
+(dm pos> () (: Pos))
+(dm car> () (car (: Inp)))
+(dm cdr> ()
+  (let (Next (cadr (: Inp))
+        R (if (= Next "\n")
+            (r+> (: Pos))
+            (r> (: Pos)))
+        C (cond
+            ((= Next "\n") 0)
+            ((= Next NIL) (c> (: Pos)))
+            (T (c+> (: Pos)))))
+    #(prinl R " " C " " (cdr (: Inp)))
+    (new '(+PInp) (cdr (: Inp)) (new '(+PPos) R C))))
 
-(de and-p2 (@P1 @P2)
-  (fill
-    '((Chars)
-      (let Res1 ('@P1 Chars)
-        (if (isa '+PSuc Res1)
-          (let Res2 ('@P2 (get Res1 'RestInp))
-            (if (isa '+PSuc Res2)
-              (let (V1 (get Res1 'Val)
-                    V2 (get Res2 'Val))
-                (new '(+PSuc)
-                     (append (if (atom V1) (list V1) V1)
-                             (if (atom V2) (list V2) V2))
-                     (get Res2 'RestInp)))
-              Res2))
-          Res1)))))
+(de err-parse (Inp X)
+  (new '(+PErr) (text "Unexpected '@1'" X) (pos> Inp)))
 
-(de or-p (@Parser1 @Parser2)
- (fill
-   '((Chars)
-     (let Res1 ('@Parser1 Chars)
-       (if (car Res1)
-         Res1
-         ('@Parser2 Chars))))))
+(de err-no-inp (Inp)
+  (new '(+PErr) "No more Input" (pos> Inp)))
 
-(de or-p2 (@P1 @P2)
- (fill
-   '((Chars)
-     (let Res1 ('@P1 Chars)
-       (if (isa '+PSuc Res1)
-         Res1
-         ('@P2 Chars))))))
+(de satisfy (@Pred)
+  (new '(+Parser)
+    (fill
+      '((Inp)
+        (let X (car> Inp)
+          (cond
+            ((= X NIL) (err-no-inp Inp))
+            (('@Pred X) (new '(+PSuc) X (cdr> Inp)))
+            (T (err-parse Inp X))))))))
+
+(de charp (@C)
+  (label "char"
+    (satisfy (fill '((X) (= X @C))))))
+
+(def 'digitp
+  (label "digit"
+    (satisfy '((X) (member X *Digit)))))
+
+(def 'wsp
+  (label "whitespace"
+    (satisfy '((X) (member X *Ws)))))
+
+(def 'lowcp
+  (label "lowercase"
+    (satisfy '((X) (member X *Lowcase)))))
+
+(def 'uppcp
+  (label "uppercase"
+    (satisfy '((X) (member X *Uppcase)))))
+
+(def 'alphap
+  (label "alphanumeric"
+    (satisfy '((X) (member X *Alpha)))))
+
+(def 'hexp
+  (label "hexadecimal"
+    (satisfy '((X) (member X *Hex)))))
+
+(de andp-comb (V1 V2)
+  (append (if (atom V1) (list V1) V1)
+          (if V2 (list V2) V2)))
+
+(de to-parser (P)
+  (if (isa '(+Parser) P)
+    P
+    (eval P)))
+
+(de andp (@P1 @P2)
+  (new '(+Parser)
+    (fill
+      '((Inp)
+        (let R1 (parse> (to-parser '@P1) Inp)
+          (if (isa '+PSuc R1)
+            (let R2 (parse> (to-parser '@P2) (r> R1))
+              (if (isa '+PSuc R2)
+                (new '(+PSuc) (andp-comb (v> R1) (v> R2)) (r> R2))
+                R2))
+            R1))))))
+
+(de orp (@P1 @P2)
+  (new '(+Parser)
+    (fill
+      '((Inp)
+        (let R1 (parse> (to-parser '@P1) Inp)
+          (if (isa '+PSuc R1)
+            R1
+            (parse> (to-parser '@P2) Inp)))))))
 
 (de reduce (Fun Lst Init)
   (if (= NIL Lst)
@@ -92,197 +154,288 @@
       (reduce Fun (cddr Lst) (Fun (car Lst) (cadr Lst)))
       (reduce Fun (cdr Lst) (Fun Init (car Lst))))))
 
-(de choice @
-  (reduce 'or-p (rest)))
+(de fp (@Fn @P)
+  (new '(+Parser)
+    (fill
+      '((Inp)
+        (let R (parse> (to-parser '@P) Inp)
+          (if (isa '+PSuc R)
+            (new '(+PSuc) ('@Fn (v> R)) (r> R))
+            R))))))
 
-(de any-of @
-  (apply choice (mapcar pchar2 (rest))))
+(de mapp (@Fn P)
+  (fp (fill '((X) (mapcar '@Fn X))) P))
 
-(def 'parse-lowc (apply any-of *Lowcase))
-(def 'parse-uppc (apply any-of *Uppcase))
-(def 'parse-digit (apply any-of *Digits))
-(def 'parse-ws (apply any-of *Whitespace))
+(de applyp (@Fn P)
+  (fp (fill '((X) (apply '@Fn X))) P))
 
-(de choice2 @
-  (reduce 'or-p2 (rest)))
+(de sequencep @
+  (reduce 'andp (rest)))
 
-(de any-of2 @
-  (apply choice2 (mapcar pchar3 (rest))))
+(de choicep @
+  (reduce 'orp (rest)))
 
-(def 'parse-lowc2 (apply any-of2 *Lowcase))
-(def 'parse-uppc2 (apply any-of2 *Uppcase))
-(def 'parse-digit2 (apply any-of2 *Digits))
-(def 'parse-ws2 (apply any-of2 *Whitespace))
+(de stringp (Str)
+  (label (text "string '@1'" Str)
+    (fp 'pack
+      (apply 'sequencep (mapcar 'charp (chop Str))))))
 
-(de sequence @
-  (reduce 'and-p (rest)))
+(de manyp-comb (V1 V2)
+  (insert 0 V2 V1))
 
-(de all-of @
-  (apply sequence (mapcar pchar2 (rest))))
-
-(de pstring (String)
-  (apply all-of (chop String)))
-
-(def 'parse3digits (sequence 'parse-digit 'parse-digit 'parse-digit))
-
-(de sequence2 @
-  (reduce 'and-p2 (rest)))
-
-(de all-of2 @
-  (apply sequence2 (mapcar pchar3 (rest))))
-
-(de pstring3 (String)
-  (apply all-of2 (chop String)))
-
-(def 'parse3digits2 (sequence2 'parse-digit2 'parse-digit2 'parse-digit2))
-
-(de map-p (@Fun @Parser)
+(de manyp (@P)
+  (new '(+Parser)
   (fill
-    '((Chars)
-      (let Res ('@Parser Chars)
-        (if (car Res)
-          (cons (list ('@Fun (car Res))) (cdr Res))
-          Res)))))
+    '((Inp)
+       (let R1 (parse> (to-parser '@P) Inp)
+         (if (isa '+PSuc R1)
+           (let R2 (parse> (manyp '@P) (r> R1))
+             (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
+           (new '(+PSuc) '() Inp)))))))
 
-(def 'parse3digits-as-str (map-p 'pack 'parse3digits))
-(def 'parse3digits-as-int (map-p 'format 'parse3digits-as-str))
+(de many1p (P)
+  (fp '((X) (cons (car X) (cadr X)))
+      (andp P (manyp P))))
 
-(de pstring2 (String)
-  (map-p 'pack (pstring String)))
-
-(de map-p2 (@F @P)
+(de optp (@P)
+  (new '(+Parser)
   (fill
-    '((Chars)
-      (let Res ('@P Chars)
-        (if (isa '+PSuc Res)
-          (new '(+PSuc) ('@F (get Res 'Val)) (get Res 'RestInp))
-          Res)))))
+    '((Inp)
+      (let R (parse> (to-parser '@P) Inp)
+        (if (isa '+PSuc R)
+          R
+          (new '(+PSuc) '() Inp)))))))
 
-(def 'parse3digits-as-str2 (map-p2 'pack 'parse3digits2))
-(def 'parse3digits-as-int2 (map-p2 'format 'parse3digits-as-str2))
-
-(de pstring4 (String)
-  (map-p2 'pack (pstring3 String)))
-
-(de return-p (@X)
+(de droprp (@P1 @P2)
+  (new '(+Parser)
   (fill
-    '((Chars)
-      (cons (list @X) Chars))))
+    '((Inp)
+      (let R1 (parse> (to-parser '@P1) Inp)
+        (if (isa '+PSuc R1)
+          (let R2 (parse> (to-parser '@P2) (r> R1))
+            (if (isa '+PSuc R2)
+              (new '(+PSuc) (v> R1) (r> R2))
+              R2))
+          R1))))))
 
-(de return-p2 (@X)
+(de droplp (@P1 @P2)
+  (new '(+Parser)
   (fill
-    '((Chars)
-      (new '(+PSuc) @X Chars))))
+    '((Inp)
+      (let R1 (parse> (to-parser '@P1) Inp)
+        (if (isa '+PSuc R1)
+          (let R2 (parse> (to-parser '@P2) (r> R1))
+            (if (isa '+PSuc R2)
+              (new '(+PSuc) (v> R2) (r> R2))
+              R2))
+          R1))))))
 
-(de parse-zero-or-more (Parser Chars)
-  (let ((Val . RestChars) (Parser Chars))
-    (ifn Val
-         (cons '() Chars)
-         (let ((Val2 . RestChars2) (parse-zero-or-more Parser RestChars))
-           (cons (append Val Val2) RestChars2)))))
+(de betweenp (P1 P2 P3)
+  (droprp (droplp P1 P2) P3))
 
-(de many (@Parser)
-  (fill
-    '((Chars)
-      (parse-zero-or-more '@Parser Chars))))
+(de sepbyp (@P @Psep)
+  (new '(+Parser)
+    (fill
+      '((Inp)
+         (let R1 (parse> (to-parser '@P) Inp)
+           (if (isa '+PSuc R1)
+             (let R2 (parse> (manyp (droplp '@Psep '@P)) (r> R1))
+               (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
+             (new '(+PSuc) '() Inp)))))))
 
-(de many+ (@Parser)
-  (fill
-    '((Chars)
-      (let Res ('@Parser Chars)
-        (ifn (car Res)
-             Res
-             (parse-zero-or-more '@Parser Chars))))))
+(de sepby1p (@P @Psep)
+  (new '(+Parser)
+    (fill
+      '((Inp)
+         (let R1 (parse> (to-parser '@P) Inp)
+           (if (isa '+PSuc R1)
+             (let R2 (parse> (manyp (droplp '@Psep '@P)) (r> R1))
+               (new '(+PSuc) (manyp-comb (v> R1) (v> R2)) (r> R2)))
+             R1))))))
+(def 'intp
+  (fp 'list
+    (fp 'format
+      (andp (optp (orp (charp "+") (charp "-")))
+            (many1p digitp)))))
 
-(def 'pint (map-p 'format (map-p 'pack (many+ 'parse-digit))))
+(de ignorep (@P @R)
+  (new '(+Parser)
+    (fill
+      '((Inp)
+        (let R (parse> (to-parser '@P) Inp)
+          (if (isa '+PSuc R)
+            (new '(+PSuc) @R (r> R))
+            R))))))
 
-(de parse-zero-or-more2 (P Chars)
-  (let Res1 (P Chars)
-    (if (isa '+PFail Res1)
-      (new '(+PSuc) '() Chars)
-      (let (Res2 (parse-zero-or-more2 P (get Res1 'RestInp))
-            V1 (get Res1 'Val)
-            V2 (get Res2 'Val))
-        (new '(+PSuc)
-             (append (if (and V1 (atom V1)) (list V1) V1)
-                     (if (and V2 (atom V2)) (list V2) V2))
-             (get Res2 'RestInp))))))
+### json
 
-(de many2 (@P)
-  (fill
-    '((Chars)
-      (parse-zero-or-more2 '@P Chars))))
+(def 'jnull
+  (label "jnull"
+    (fp 'any (stringp "null"))))
 
-(de many2+ (@P)
-  (fill
-    '((Chars)
-      (let Res1 ('@P Chars)
-        (if (isa '+PFail Res1)
-          Res1
-          (let (Res2 (parse-zero-or-more2 '@P (get Res1 'RestInp))
-                V1 (get Res1 'Val)
-                V2 (get Res2 'Val))
-            (new '(+PSuc)
-                 (append (if (and V1 (atom V1)) (list V1) V1)
-                         (if (and V2 (atom V2)) (list V2) V2))
-                 (get Res2 'RestInp))))))))
+(def 'jtrue
+  (label "jtrue"
+    (fp 'any (stringp "true"))))
 
-(def 'pint3 (map-p2 'format (map-p2 'pack (many2+ 'parse-digit2))))
+(def 'jfalse
+  (label "jfalse"
+    (fp 'any (stringp "false"))))
 
-(de opt (@Parser)
-  (fill
-    '((Chars)
-      (let Res ('@Parser Chars)
-        (if (car Res)
-          Res
-          ((return-p NIL) Chars))))))
+(def 'jbool
+  (label "jbool"
+    (orp jtrue jfalse)))
 
-(de opt2 (@P)
-  (fill
-    '((Chars)
-      (let Res ('@P Chars)
-        (if (isa '+PSuc Res)
-          Res
-          ((return-p2 NIL) Chars))))))
+(def 'junescaped
+  (satisfy '((X) (not (or (= X "\\") (= X "\""))))))
 
-(def 'pint2 (map-p 'format (map-p 'pack (sequence (opt (pchar2 "-")) (many+ 'parse-digit)))))
+(setq *Jesc
+  (list
+    '("\\\"" . "\"")
+    '("\\\\" . "\\")
+    '("\\/" . "/")
+    '("\\b" . `(char (hex "232B")))
+    '("\\f" . `(char (hex "240A")))
+    '("\\n" . "\n")
+    '("\\r" . "\r")
+    '("\\t" . "\t")
+    ))
 
-(def 'pint4 (map-p2 'format (map-p2 'pack (sequence2 (opt2 (pchar3 "-")) (many2+ 'parse-digit2)))))
+(def 'jescaped
+  (apply 'choicep
+         (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc)))
 
-(de and-p-drop-left (P1 P2)
-  (map-p 'cadr (and-p P1 P2)))
+(def 'junicode
+  (let (bl (charp "\\")
+        uc (charp "u")
+        hx (sequencep hexp hexp hexp hexp)
+        code (fp 'char (fp 'hex (fp 'pack hx))))
+    (label "junicode"
+      (droplp bl (droplp uc code)))))
 
-(de and-p-drop-right (P1 P2)
-  (map-p 'car (and-p P1 P2)))
+(def 'jchar
+  (label "jchar"
+    (choicep junescaped jescaped junicode)))
 
-(de between (P1 P2 P3)
-  (and-p-drop-right (and-p-drop-left P1 P2) P3))
+(def 'jstring
+  (let (quotep (charp "\"")
+        manych (fp 'pack (manyp jchar)))
+    (label "jstring"
+      (droprp (droplp quotep manych) quotep))))
 
-(de sep-by+ (P PSep)
-  (and-p P (many (and-p-drop-left PSep P))))
+(de to-num (s int fr se ex)
+  (let (exn (format ex)
+        exval (if exn (apply * (need exn 10)) 1)
+        exlen (if (= se "-") exn 0)
+        frlen (length fr))
+    (setq *Scl (max *Scl (+ frlen exlen)))
+    (let (num (format (pack s int "." fr) *Scl)
+          op (if (= se "-") '/ '*))
+      (op num exval))))
 
-(de sep-by (P PSep)
-  (or-p (sep-by+ P PSep) (return-p NIL)))
+(def 'jnumber
+  (let (sign (optp (orp (charp "+") (charp "-")))
+        point (charp ".")
+        exp (orp (charp "e") (charp "E"))
+        intpart (andp sign (many1p digitp))
+        fracpart (droplp point (many1p digitp))
+        exppart (droplp exp intpart)
+        tuple (sequencep intpart
+                         (optp fracpart)
+                         (optp exppart)))
+    (label "jnumber"
+      (applyp 'to-num (mapp 'pack tuple)))))
 
-(de and-p-drop-left2 (P1 P2)
-  (map-p2 'cadr (and-p2 P1 P2)))
+(def 'spacesp (manyp wsp))
 
-(de and-p-drop-right2 (P1 P2)
-  (map-p2 'car (and-p2 P1 P2)))
+(de to-array (Lst)
+  (append '(T) Lst))
 
-(de between (P1 P2 P3)
-  (and-p-drop-right2 (and-p-drop-left2 P1 P2) P3))
+(def 'jarray
+  (let (left (droprp (charp "[") 'spacesp)
+        right (droprp (charp "]") 'spacesp)
+        comma (droprp (charp ",") 'spacesp)
+        value (droprp 'jvalue 'spacesp)
+        values (sepbyp value comma))
+    (label "jarray"
+      (fp 'to-array (betweenp left values right)))))
 
-(de sep-by2+ (P PSep)
-  (and-p2 P (many2 (and-p-drop-left2 PSep P))))
+(def 'jobject
+  (let (left (droprp (charp "{") 'spacesp)
+        right (droprp (charp "}") 'spacesp)
+        comma (droprp (charp ",") 'spacesp)
+        colon (droprp (charp ":") 'spacesp)
+        key (droprp 'jstring 'spacesp)
+        value (droprp 'jvalue 'spacesp)
+        keyval (andp (droprp key colon) value)
+        keyvals (sepbyp keyval comma))
+    (label "jobject"
+      (betweenp left keyvals right))))
 
-(de sep-by2 (P PSep)
-  (or-p2 (sep-by2+ P PSep) (return-p2 NIL)))
+(def 'jvalue
+  (label "jvalue"
+    (choicep
+      'jobject
+      'jarray
+      'jstring
+      'jnumber
+      'jbool
+      'jnull)))
 
-(de bind-p (@Fun @P)
-  (fill '((Chars)
-          (let Res ('@P Chars)
-            (if (car Res)
-              (let P2 ('@Fun (car Res))
-                (P2 (cdr Res)))
-              Res)))))
+### print
+
+(de to-chars (File)
+  (chop (in File (till NIL T))))
+
+(de to-pinp (File)
+  (new '(+PInp) (to-chars File) (pos0)))
+
+(de read-json (Source)
+  (cond
+    ((isa '+PInp Source) (parse> jvalue Source))
+    ((info Source) (parse> jvalue (to-pinp Source)))
+    ((str? Source) (parse> jvalue (new '(+PInp) (chop Source) (pos0))))
+    ((lst? Source) (parse> jvalue (new '(+PInp) Source (pos0))))
+    (T (throw 'JsonParseError "cannot read source"))))
+
+(setq *Json-pretty-print NIL)
+(setq *Json-indent-char " ")
+(setq *Json-indent 2)
+
+(de print-json (Jval Indent)
+  (let (Newline (when *Json-pretty-print "\n")
+        Ind (if (and *Json-pretty-print Indent) Indent 0)
+        Ind++ (inc Ind)
+        IndStr (when *Json-pretty-print (need (* Ind *Json-indent) *Json-indent-char))
+        IndStr++ (when *Json-pretty-print (need (* Ind++ *Json-indent) *Json-indent-char)))
+    (cond
+      ((atom Jval) # single value
+        (prin IndStr)
+        (cond
+          ((str? Jval) (print Jval))
+          ((num? Jval) (prin (format Jval *Scl)))
+          ((= NIL Jval) (prin "{}"))
+          (T (prin Jval))))
+      ((= T (car Jval)) # array
+        (prin "[" Newline)
+        (map '((X)
+               (let V (car X)
+                 (unless (atom V) (prin IndStr++))
+                 (print-json V Ind++))
+               (prin (when (cdr X) ",") Newline))
+             (cdr Jval))
+        (prin IndStr "]"))
+      (T # object
+        (prin "{" Newline)
+        (map '((X)
+               (print-json (caar X) Ind++)
+               (if *Json-pretty-print
+                 (prin " : ")
+                 (prin ":"))
+               (let V (cadar X)
+                 (if (atom V)
+                   (print-json V)
+                   (print-json V Ind++)))
+               (prin (when (cdr X) ",") Newline))
+             Jval)
+        (prin IndStr "}")))))
+
