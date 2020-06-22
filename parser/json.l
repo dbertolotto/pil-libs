@@ -65,18 +65,35 @@
           op (if (= se "-") '/ '*))
       (op num exval))))
 
+(def 'num-sign
+  (optp (orp (charp "+") (charp "-"))))
+
+(def 'num-int-part
+  (andp num-sign
+        (fp 'pack (orp digit0p
+                       (andp digit19p (manyp digitp))))))
+
+(def 'num-frac-part
+  (droplp (charp ".")
+          (applyp 'pack (many1p digitp))))
+
+(def 'num-exp
+  (orp (charp "e") (charp "E")))
+
+(def 'num-exp-part
+  (droplp num-exp
+         (andp num-sign
+               (applyp 'pack (many1p digitp)))))
+
+(def 'num-full
+  (sequencep num-int-part
+             (optp num-frac-part)
+             (optp num-exp-part)))
+
 (def 'jnumber
-  (let (sign (optp (orp (charp "+") (charp "-")))
-        point (charp ".")
-        exp (orp (charp "e") (charp "E"))
-        intpart (andp sign (many1p digitp))
-        fracpart (droplp point (many1p digitp))
-        exppart (droplp exp intpart)
-        tuple (sequencep intpart
-                         (optp fracpart)
-                         (optp exppart)))
-    (label "jnumber"
-      (applyp 'to-num (mapp 'pack tuple)))))
+  (label "jnumber"
+    (applyp 'to-num
+            (fp '((X) (fish atom X)) num-full))))
 
 (def 'spacesp (manyp wsp))
 
@@ -84,21 +101,21 @@
   (append '(T) Lst))
 
 (def 'jarray
-  (let (left (droprp (charp "[") 'spacesp)
-        right (droprp (charp "]") 'spacesp)
-        comma (droprp (charp ",") 'spacesp)
-        value (droprp 'jvalue 'spacesp)
+  (let (left (droprp (charp "[") spacesp)
+        right (droprp (charp "]") spacesp)
+        comma (droprp (charp ",") spacesp)
+        value (droprp 'jvalue spacesp)
         values (sepbyp value comma))
     (label "jarray"
       (fp 'to-array (betweenp left values right)))))
 
 (def 'jobject
-  (let (left (droprp (charp "{") 'spacesp)
-        right (droprp (charp "}") 'spacesp)
-        comma (droprp (charp ",") 'spacesp)
-        colon (droprp (charp ":") 'spacesp)
-        key (droprp 'jstring 'spacesp)
-        value (droprp 'jvalue 'spacesp)
+  (let (left (droprp (charp "{") spacesp)
+        right (droprp (charp "}") spacesp)
+        comma (droprp (charp ",") spacesp)
+        colon (droprp (charp ":") spacesp)
+        key (droprp jstring spacesp)
+        value (droprp 'jvalue spacesp)
         keyval (andp (droprp key colon) value)
         keyvals (sepbyp keyval comma))
     (label "jobject"
@@ -107,12 +124,12 @@
 (def 'jvalue
   (label "jvalue"
     (choicep
-      'jobject
-      'jarray
-      'jstring
-      'jnumber
-      'jbool
-      'jnull)))
+      jobject
+      jarray
+      jstring
+      jnumber
+      jbool
+      jnull)))
 
 ### print
 

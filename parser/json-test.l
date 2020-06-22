@@ -105,17 +105,17 @@
 
 (deftest t-jnumber ()
   (let scl0= '((A B) (scl 0) (= A B))
-    (check 'scl0=
-      (1 (to-num "" "1" "" "" ""))
-      (1 (to-num "+" "1" "" "" ""))
-      (-1 (to-num "-" "1" "" "" ""))
-      (-12 (to-num "-" "1" "2" "" ""))
-      (-1200 (to-num "-" "1" "2" "" "2"))
-      (12 (to-num "" "1" "2" "-" "2"))
-      (0 (parsev jnumber "0"))
-      (12 (parsev jnumber "+1.2e-3"))
-      (0 (scl 0)) # reset scl
-      )))
+    (bind '((*Scl . 0))
+      (check 'scl0=
+        (1 (to-num "" "1" "" "" ""))
+        (1 (to-num "+" "1" "" "" ""))
+        (-1 (to-num "-" "1" "" "" ""))
+        (-12 (to-num "-" "1" "2" "" ""))
+        (-1200 (to-num "-" "1" "2" "" "2"))
+        (12 (to-num "" "1" "2" "-" "2"))
+        (0 (parsev jnumber "0"))
+        (12 (parsev jnumber "+1.2e-3"))
+        ))))
 
 (deftest t-jarray ()
   (check=
@@ -153,13 +153,13 @@
 (deftest t-jvalue ()
   (check=
     ('(T "a" (("b" false)))
-     (parsev jarray "[\"a\",{\"b\":false}]"))
+     (parsev jvalue "[\"a\",{\"b\":false}]"))
     ('(("a" (T false)))
-     (parsev jobject "{\"a\":[false]}"))
+     (parsev jvalue "{\"a\":[false]}"))
     ('(("a" (T false 1)))
-     (parsev jobject "{\"a\":[false,1]}"))
+     (parsev jvalue "{\"a\":[false,1]}"))
     ('(("a" (T false (("b" 1)))))
-     (parsev jobject "{\"a\":[false,{\"b\":1}]}"))
+     (parsev jvalue "{\"a\":[false,{\"b\":1}]}"))
     ))
 
 (deftest t-json ()
