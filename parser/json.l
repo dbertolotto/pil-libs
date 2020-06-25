@@ -1,5 +1,5 @@
 # json parser
-(load "parser.l")
+(load+ "#parser/parser.l")
 (symbols 'json 'pico 'parser)
 
 (def 'jnull
@@ -49,11 +49,15 @@
   (label "jchar"
     (choicep junescaped jescaped junicode)))
 
+(de handle-empty-string (S)
+  (if S S 'nils))
+
 (def 'jstring
   (let (quotep (charp "\"")
         manych (fp 'pack (manyp jchar)))
     (label "jstring"
-      (droprp (droplp quotep manych) quotep))))
+      (fp 'handle-empty-string
+        (droprp (droplp quotep manych) quotep)))))
 
 (de to-num (s int fr se ex)
   (let (exn (format ex)
@@ -148,6 +152,7 @@
     (T (throw 'JsonParseError "cannot read source"))))
 
 (setq *Json-pretty-print NIL)
+(setq *Json-pp-space-before-colon NIL)
 (setq *Json-indent-char " ")
 (setq *Json-indent 2)
 
@@ -163,6 +168,7 @@
         (cond
           ((str? Jval) (print Jval))
           ((num? Jval) (prin (format Jval *Scl)))
+          ((= 'nils Jval) (prin "\"\""))
           ((= NIL Jval) (prin "{}"))
           (T (prin Jval))))
       ((= T (car Jval)) # array
@@ -179,7 +185,7 @@
         (map '((X)
                (print-json (caar X) Ind++)
                (if *Json-pretty-print
-                 (prin " : ")
+                 (prin (when *Json-pp-space-before-colon " ") ": ")
                  (prin ":"))
                (let V (cadar X)
                  (if (atom V)

@@ -1,5 +1,5 @@
-(load "json.l" "../lib/unit.l")
-(symbols 'pico 'unit 'json 'parser)
+(load+ "#parser/json.l" "#lib/unit.l" "#lib/io.l" "#lib/crypto.l")
+(symbols 'pico 'unit 'json 'parser 'io 'crypto)
 
 # helper function for tests
 (de perr? (PRes)
@@ -25,6 +25,18 @@
 
 (de uni (S)
   (char (hex S)))
+
+(de to-str (Jval)
+  (pipe (print-json Jval) (till NIL T)))
+
+# sample files
+(setq ex01 (read-file "ex01.json"))
+(setq ex02 (read-file "ex02.json"))
+(setq ex03 (read-file "ex03.json"))
+(setq ex04 (read-file "ex04.json"))
+(setq ex05 (read-file "ex05.json"))
+
+### tests
 
 (deftest t-jnull ()
   (check=
@@ -96,7 +108,7 @@
 
 (deftest t-jstring ()
   (check=
-    ("" (parsev jstring "\"\""))
+    ('nils (parsev jstring "\"\""))
     ("a" (parsev jstring "\"a\""))
     ("ab" (parsev jstring "\"ab\""))
     ("ab\tde" (parsev jstring "\"ab\\tde\""))
@@ -120,6 +132,7 @@
 (deftest t-jarray ()
   (check=
     ('(T) (parsev jarray "[ ]"))
+    ('(T) (parsev jarray "[\n]"))
     ('(T 1) (parsev jarray "[1]"))
     ('(T "a" false 12)
      (parsev jarray "[ \"a\" , false , 12 ]"))
@@ -137,6 +150,7 @@
 (deftest t-jobject ()
   (check=
     ('() (parsev jobject "{ }"))
+    ('() (parsev jobject "{\n}"))
     ('(("a" false))
      (parsev jobject "{\"a\":false}"))
     ('(("b" null))
@@ -162,6 +176,18 @@
      (parsev jvalue "{\"a\":[false,{\"b\":1}]}"))
     ))
 
+(deftest t-read-print ()
+  (let (md5= '((A B) (= (md5 A) (md5 B)))
+        *Json-pretty-print T)
+    (check 'md5=
+      (ex01 (pack (to-str (parsev jvalue ex01)) "\n"))
+      (ex02 (pack (to-str (parsev jvalue ex02)) "\n"))
+      (ex03 (pack (to-str (parsev jvalue ex03)) "\n"))
+      (ex04 (pack (to-str (parsev jvalue ex04)) "\n"))
+      (ex05 (pack (to-str (parsev jvalue ex05)) "\n"))
+      )))
+
+
 (deftest t-json ()
   (combine-results
     (t-jnull)
@@ -177,23 +203,16 @@
     (t-jarray)
     (t-jobject)
     (t-jvalue)
+    (t-read-print)
     ))
 
 (t-json)
 
 ### json
 
-(setq ex01 (to-pinp "ex01.json"))
-(setq ex02 (to-pinp "ex02.json"))
-(setq ex03 (to-pinp "ex03.json"))
-(setq ex04 (to-pinp "ex04.json"))
-(setq ex05 (to-pinp "ex05.json"))
-
 ### print
 
 # helper fun for testing
-(de to-str (Jval)
-  (pipe (print-json Jval) (line T)))
 
 (test "[]" (to-str '(T)))
 (test "[\"a\"]" (to-str '(T "a")))
@@ -204,3 +223,9 @@
 (test "{\"a\":false}" (to-str '(("a" false))))
 (test "{\"a\":false,\"b\":12}"
       (to-str '(("a" false) ("b" 12))))
+
+(setq *Json-pretty-print T)
+#(mapcar '((x y) (when (println x y)))
+#        (chop ex04)
+#        (append (chop (to-str (parsev jvalue ex04))) "\n"))
+#(out "ex04.json.out" (prinl (to-str (parsev jvalue ex04))))

@@ -1,4 +1,4 @@
-(load "parser.l" "../lib/unit.l")
+(load+ "#parser/parser.l" "#lib/unit.l")
 (symbols 'pico 'parser 'unit)
 
 # helper function for tests
