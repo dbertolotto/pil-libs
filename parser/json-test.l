@@ -35,6 +35,7 @@
 (setq ex03 (read-file "ex03.json"))
 (setq ex04 (read-file "ex04.json"))
 (setq ex05 (read-file "ex05.json"))
+(setq test02 (read-file "test02.json"))
 
 ### tests
 
@@ -126,7 +127,16 @@
         (-1200 (to-num "-" "1" "2" "" "2"))
         (12 (to-num "" "1" "2" "-" "2"))
         (0 (parsev jnumber "0"))
+        (0 (parsev jnumber "-0"))
+        (34 (parsev jnumber "34"))
+        (-34 (parsev jnumber "-34"))
+        (345 (parsev jnumber "34.5"))
+        (-345 (parsev jnumber "-34.5"))
         (12 (parsev jnumber "+1.2e-3"))
+        (1200 (parsev jnumber "+1.2e2"))
+        (12 (parsev jnumber "+1.2e0"))
+        (12 (parsev jnumber "+1.2e-0"))
+        (-12 (parsev jnumber "-1.2e-3"))
         ))))
 
 (deftest t-jarray ()
@@ -176,6 +186,19 @@
      (parsev jvalue "{\"a\":[false,{\"b\":1}]}"))
     ))
 
+(deftest t-print ()
+  (check=
+    ("\"\"" (to-str 'nils))
+    ("[]" (to-str '(T)))
+    ("[\"a\"]" (to-str '(T "a")))
+    ("[\"a\",\"b\"]" (to-str '(T "a" "b")))
+    ("[1,2]" (to-str '(T 1 2)))
+    ("{}" (to-str '()))
+    ("{\"a\":false}" (to-str '(("a" false))))
+    ("{\"a\":false,\"b\":12}"
+     (to-str '(("a" false) ("b" 12))))
+    ))
+
 (deftest t-read-print ()
   (let (md5= '((A B) (= (md5 A) (md5 B)))
         *Json-pretty-print T)
@@ -185,8 +208,8 @@
       (ex03 (pack (to-str (parsev jvalue ex03)) "\n"))
       (ex04 (pack (to-str (parsev jvalue ex04)) "\n"))
       (ex05 (pack (to-str (parsev jvalue ex05)) "\n"))
+      (test02 (pack (to-str (parsev jvalue test02)) "\n"))
       )))
-
 
 (deftest t-json ()
   (combine-results
@@ -203,28 +226,12 @@
     (t-jarray)
     (t-jobject)
     (t-jvalue)
+    (t-print)
     (t-read-print)
     ))
 
 (t-json)
 
-### json
-
-### print
-
-# helper fun for testing
-
-(test "[]" (to-str '(T)))
-(test "[\"a\"]" (to-str '(T "a")))
-(test "[\"a\",\"b\"]" (to-str '(T "a" "b")))
-(test "[1,2]" (to-str '(T 1 2)))
-
-(test "{}" (to-str '()))
-(test "{\"a\":false}" (to-str '(("a" false))))
-(test "{\"a\":false,\"b\":12}"
-      (to-str '(("a" false) ("b" 12))))
-
-(setq *Json-pretty-print T)
 #(mapcar '((x y) (when (println x y)))
 #        (chop ex04)
 #        (append (chop (to-str (parsev jvalue ex04))) "\n"))

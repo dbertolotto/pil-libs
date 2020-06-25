@@ -146,22 +146,6 @@
                 R2))
             R1))))))
 
-(de orp (@P1 @P2)
-  (new '(+Parser)
-    (fill
-      '((Inp)
-        (let R1 (doparse '@P1 Inp)
-          (if (isa '+PSuc R1)
-            R1
-            (doparse '@P2 Inp)))))))
-
-(de reduce (Fun Lst Init)
-  (if (= NIL Lst)
-    Init
-    (if (= NIL Init)
-      (reduce Fun (cddr Lst) (Fun (car Lst) (cadr Lst)))
-      (reduce Fun (cdr Lst) (Fun Init (car Lst))))))
-
 (de fp (@Fn @P)
   (new '(+Parser)
     (fill
@@ -197,8 +181,15 @@
               R1)))))
     (returnp NIL)))
 
-(de choicep @
-  (reduce 'orp (rest)))
+(de orp @PLst
+  (new '(+Parser)
+    (fill
+      '((Inp)
+        (let (R1 (doparse (car '@PLst) Inp)
+              Cdr (cdr '@PLst))
+          (if (and (not (isa '(+PSuc) R1)) Cdr)
+            (doparse (eval (cons 'orp Cdr)) Inp)
+            R1))))))
 
 (de stringp (Str)
   (label (text "string '@1'" Str)

@@ -21,3 +21,11 @@
     (for (I . X) Lst
       (when (= 0 (% I 2))
         (link X)))))
+
+(de reduce (Fun Lst Init)
+  (if (= NIL Lst)
+    Init
+    (if (= NIL Init)
+      (reduce Fun (cddr Lst) (Fun (car Lst) (cadr Lst)))
+      (reduce Fun (cdr Lst) (Fun Init (car Lst))))))
+

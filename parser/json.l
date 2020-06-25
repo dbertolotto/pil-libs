@@ -34,8 +34,9 @@
     ))
 
 (def 'jescaped
-  (apply 'choicep
-         (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc)))
+  (eval
+    (cons 'orp
+          (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc))))
 
 (def 'junicode
   (let (bl (charp "\\")
@@ -47,7 +48,7 @@
 
 (def 'jchar
   (label "jchar"
-    (choicep junescaped jescaped junicode)))
+    (orp junescaped jescaped junicode)))
 
 (de handle-empty-string (S)
   (if S S 'nils))
@@ -59,15 +60,18 @@
       (fp 'handle-empty-string
         (droprp (droplp quotep manych) quotep)))))
 
-(de to-num (s int fr se ex)
-  (let (exn (format ex)
-        exval (if exn (apply * (need exn 10)) 1)
-        exlen (if (= se "-") exn 0)
-        frlen (length fr))
-    (setq *Scl (max *Scl (+ frlen exlen)))
-    (let (num (format (pack s int "." fr) *Scl)
-          op (if (= se "-") '/ '*))
-      (op num exval))))
+(de to-num (Sign Int Frac SignExp Exp)
+  (let (Expn (format Exp)
+        ExpVal (case Expn
+                 (NIL 1)
+                 (0 1)
+                 (T (apply * (need Expn 10))))
+        ExpScl (if (= SignExp "-") Expn 0)
+        FracScl (length Frac))
+    (scl (max *Scl (+ FracScl ExpScl)))
+    (let (Num (format (pack Sign Int "." Frac) *Scl)
+          op (if (= SignExp "-") '/ '*))
+      (op Num ExpVal))))
 
 (def 'num-sign
   (optp (orp (charp "+") (charp "-"))))
@@ -127,7 +131,7 @@
 
 (def 'jvalue
   (label "jvalue"
-    (choicep
+    (orp
       jobject
       jarray
       jstring

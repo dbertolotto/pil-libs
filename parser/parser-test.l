@@ -124,9 +124,9 @@
 (deftest t-choicep ()
   (let (pA (charp "A")
         pB (charp "B")
-        c0 (choicep)
-        cA (choicep pA)
-        cAB (choicep pA pB))
+        c0 (orp)
+        cA (orp pA)
+        cAB (orp pA pB))
     (check=
 #      ('() (parsev c0 "A"))
 #      ("A" (parsev cA "A"))
@@ -156,7 +156,7 @@
         mA (manyp pA)
         pAB (stringp "AB")
         mAB (manyp pAB)
-        mcAB (manyp (choicep pA pB)))
+        mcAB (manyp (orp pA pB)))
     (check=
       ('() (parsev mA "B"))
       ('("A") (parsev mA "A"))
