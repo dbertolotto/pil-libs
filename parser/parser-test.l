@@ -28,43 +28,43 @@
     (check=
       ("A" (parsev pA "A"))
       (T (perr? (parse pA "B")))
-      ((err-help 1 1 "char" "B") (parsem pA "B"))
+      ((err-help 1 1 "char 'A'" "B") (parsem pA "B"))
       (T (perr? (parse pA (pinp ""))))
-      ((err-help 1 1 "char") (parsem pA ""))
+      ((err-help 1 1 "char 'A'") (parsem pA ""))
       )))
 
 (deftest t-digitp ()
   (check=
-    ("1" (parsev digitp "1"))
+    ("1" (parsev (digitp) "1"))
     ))
 
 (deftest t-wsp ()
   (check=
-    (" " (parsev wsp " "))
+    (" " (parsev (wsp) " "))
     ))
 
 (deftest t-lowcp ()
   (check=
-    ("g" (parsev lowcp "g"))
+    ("g" (parsev (lowcp) "g"))
     ))
 
 (deftest t-uppcp ()
   (check=
-    ("G" (parsev uppcp "G"))
+    ("G" (parsev (uppcp) "G"))
     ))
 
 (deftest t-alphap ()
   (check=
-    ("1" (parsev alphap "1"))
-    ("g" (parsev alphap "g"))
-    ("G" (parsev alphap "G"))
+    ("1" (parsev (alphap) "1"))
+    ("g" (parsev (alphap) "g"))
+    ("G" (parsev (alphap) "G"))
     ))
 
 (deftest t-hexp ()
   (check=
-    ("1" (parsev hexp "1"))
-    ("c" (parsev hexp "c"))
-    ("C" (parsev hexp "C"))
+    ("1" (parsev (hexp) "1"))
+    ("c" (parsev (hexp) "c"))
+    ("C" (parsev (hexp) "C"))
     ))
 
 (deftest t-satisfy ()
@@ -82,10 +82,10 @@
   (let (pA (charp "A")
         pB (charp "B")
         pC (charp "C")
-        pAB (andp pA pB)
-        pBC (andp pB pC)
-        pABC (andp pAB pC)
-        pABC2 (andp pA pBC))
+        pAB (andp 'pA 'pB)
+        pBC (andp 'pB 'pC)
+        pABC (andp 'pAB 'pC)
+        pABC2 (andp 'pA 'pBC))
     (check=
       ('("A" "B") (parsev pAB "AB"))
       ('(("A" "B") "C") (parsev pABC "ABC"))
@@ -175,7 +175,7 @@
 
 (deftest t-many1p ()
   (let (pA (charp "A")
-        mA (many1p pA))
+        mA (many1p 'pA))
     (check=
       (T (perr? (parse mA "B")))
       ('("A") (parsev mA "A."))
@@ -222,7 +222,7 @@
       )))
 
 (deftest t-sepbyp ()
-  (let (sp (sepbyp digitp (charp ";"))
+  (let (sp (sepbyp (digitp) (charp ";"))
         sp2 (sepbyp (orp (charp "a") (charp "b"))
                     (charp ":")))
     (check=
@@ -238,7 +238,7 @@
       )))
 
 (deftest t-sepby1p ()
-  (let sp (sepby1p digitp (charp ";"))
+  (let sp (sepby1p (digitp) (charp ";"))
     (check=
       (T (perr? (parse sp "A")))
       (T (perr? (parse sp "A.")))
@@ -267,7 +267,7 @@
 
 (t-parse)
 
-(let (mP (many1p digitp)
+(let (mP (many1p (digitp))
       strp (fp 'list (fp 'pack mP))
       nump (fp 'list (fp 'format mP))
       numlp (mapp 'format mP))

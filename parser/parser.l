@@ -1,6 +1,8 @@
 # combinatory parser
 (symbols 'parser 'pico)
 
+(setq *ParserError NIL)
+
 (setq *Lowcase (make (for I 26 (link (char (+ 96 I))))))
 (setq *Uppcase (mapcar uppc *Lowcase))
 (setq *Digit (mapcar format (range 0 9)))
@@ -12,11 +14,6 @@
 (class +PLabel)
 (dm label> (NewLabel)
   (=: Label NewLabel))
-#  (when NewLabel
-#    (let L (: Label)
-#      (if L
-#        (=: Label (pack NewLabel " => " L))
-#        (=: Label NewLabel)))))
 
 (de label (Label Obj)
   (when Label
@@ -24,7 +21,8 @@
   Obj)
 
 (class +Parser +PLabel)
-(dm T (Fun)
+(dm T (Label Fun)
+  (=: Label Label)
   (=: Fun Fun))
 (dm parse> (Inp)
   (label (: Label) ((: Fun) Inp)))
@@ -71,7 +69,7 @@
             ((= Next "\n") 0)
             ((= Next NIL) (c> (: Pos)))
             (T (c+> (: Pos)))))
-    #(prinl R " " C " " (cdr (: Inp)))
+    #(prinl R " " C " " (: Inp))
     (new '(+PInp) (cdr (: Inp)) (new '(+PPos) R C))))
 
 (de err-parse (Inp X)
@@ -80,51 +78,62 @@
 (de err-no-inp (Inp)
   (new '(+PErr) "No more Input" (pos> Inp)))
 
-(de satisfy (@Pred)
-  (new '(+Parser)
-    (fill
-      '((Inp)
-        (let X (car> Inp)
-          (cond
-            ((= X NIL) (err-no-inp Inp))
-            (('@Pred X) (new '(+PSuc) X (cdr> Inp)))
-            (T (err-parse Inp X))))))))
+(de add-err (R)
+  (setq *ParserError (insert 0 *ParserError (m> R)))
+  R)
 
-(de charp (@C)
-  (label "char"
-    (satisfy (fill '((X) (= X @C))))))
+(de showerr ()
+  (mapc 'prinl (head 5 *ParserError)))
 
-(def 'digit0p
-  (label "digit"
-    (charp "0")))
+(de defp Args
+  (let (@Name (car Args)
+        @Params (cadr Args)
+        @Label (caddr Args)
+        @Body (cdddr Args))
+    (macro
+      (de @Name @Params
+        (new '(+Parser) @Label
+          (fill '((Inp)
+            ~'@Body)))))))
 
-(def 'digit19p
-  (label "digit"
-    (satisfy '((X) (member X *Digit19)))))
+(de satisfy (Pred Inp)
+  (let X (car> Inp)
+    (cond
+      ((= X NIL) (add-err (err-no-inp Inp)))
+      (('Pred X) (new '(+PSuc) X (cdr> Inp)))
+      (T  (add-err (err-parse Inp X))))))
 
-(def 'digitp
-  (label "digit"
-    (satisfy '((X) (member X *Digit)))))
+(defp charp (@C)
+  (text "char '@1'" @C)
+  (satisfy (fill '((X) (= X @C))) Inp))
 
-(def 'wsp
-  (label "whitespace"
-    (satisfy '((X) (member X *Ws)))))
+(defp digit19p ()
+  "digit[1-9]"
+  (satisfy '((X) (member X *Digit19)) Inp))
 
-(def 'lowcp
-  (label "lowercase"
-    (satisfy '((X) (member X *Lowcase)))))
+(defp digitp ()
+  "digit"
+  (satisfy '((X) (member X *Digit)) Inp))
 
-(def 'uppcp
-  (label "uppercase"
-    (satisfy '((X) (member X *Uppcase)))))
+(defp wsp ()
+  "whitespace"
+   (satisfy '((X) (member X *Ws)) Inp))
 
-(def 'alphap
-  (label "alphanumeric"
-    (satisfy '((X) (member X *Alpha)))))
+(defp lowcp ()
+  "lowercase"
+  (satisfy '((X) (member X *Lowcase)) Inp))
 
-(def 'hexp
-  (label "hexadecimal"
-    (satisfy '((X) (member X *Hex)))))
+(defp uppcp ()
+  "uppercase"
+  (satisfy '((X) (member X *Uppcase)) Inp))
+
+(defp alphap ()
+  "alphanumeric"
+  (satisfy '((X) (member X *Alpha)) Inp))
+
+(defp hexp ()
+  "hexadecimal"
+    (satisfy '((X) (member X *Hex)) Inp))
 
 (de to-parser (P)
   (if (isa '(+Parser) P)
@@ -134,26 +143,22 @@
 (de doparse (P Inp)
   (parse> (to-parser P) Inp))
 
-(de andp (@P1 @P2)
-  (new '(+Parser)
-    (fill
-      '((Inp)
-        (let R1 (doparse '@P1 Inp)
-          (if (isa '+PSuc R1)
-            (let R2 (doparse '@P2 (r> R1))
-              (if (isa '+PSuc R2)
-                (new '(+PSuc) (list (v> R1) (v> R2)) (r> R2))
-                R2))
-            R1))))))
+(defp andp (@P1 @P2)
+  (text "(@1 AND @2)" (get (to-parser @P1) 'Label) (get (to-parser @P2) 'Label))
+  (let R1 (doparse '@P1 Inp)
+    (if (isa '+PSuc R1)
+      (let R2 (doparse '@P2 (r> R1))
+        (if (isa '+PSuc R2)
+          (new '(+PSuc) (list (v> R1) (v> R2)) (r> R2))
+          (add-err R2)))
+      (add-err R1))))
 
-(de fp (@Fn @P)
-  (new '(+Parser)
-    (fill
-      '((Inp)
-        (let R (doparse '@P Inp)
-          (if (isa '+PSuc R)
-            (new '(+PSuc) ('@Fn (v> R)) (r> R))
-            R))))))
+(defp fp (@Fn @P)
+  "unknown"
+  (let R (doparse '@P Inp)
+    (if (isa '+PSuc R)
+      (new '(+PSuc) ('@Fn (v> R)) (r> R))
+      (add-err R))))
 
 (de mapp (@Fn P)
   (fp (fill '((X) (mapcar '@Fn X))) P))
@@ -161,15 +166,13 @@
 (de applyp (@Fn P)
   (fp (fill '((X) (apply '@Fn X))) P))
 
-(de returnp (X)
-  (new '(+Parser)
-    (fill
-      '((Inp)
-        (new '(+PSuc) X Inp)))))
+(defp returnp (X)
+  (text "return @1" X)
+  (new '(+PSuc) X Inp))
 
 (de sequencep @PLst
   (if @PLst
-    (new '(+Parser)
+    (new '(+Parser) "sequence"
       (fill
         '((Inp)
           (let R1 (doparse (car '@PLst) Inp)
@@ -177,111 +180,103 @@
               (let R2 (doparse (eval (cons 'sequencep (cdr '@PLst))) (r> R1))
                 (if (isa '(+PSuc) R2)
                   (new '(+PSuc) (cons (v> R1) (v> R2) ) (r> R2))
-                  R2))
-              R1)))))
+                  (add-err R2)))
+              (add-err R1))))))
     (returnp NIL)))
 
-(de orp @PLst
-  (new '(+Parser)
-    (fill
-      '((Inp)
-        (let (R1 (doparse (car '@PLst) Inp)
-              Cdr (cdr '@PLst))
-          (if (and (not (isa '(+PSuc) R1)) Cdr)
-            (doparse (eval (cons 'orp Cdr)) Inp)
-            R1))))))
+(defp orp @PLst
+  (text "any of (@1)" (pack (maplist '((L) (pack (car L) (when (cdr L) ",")))
+                                     (mapcar '((P) (get (to-parser P) 'Label))
+                                             @PLst))))
+  (let (R1 (doparse (car '@PLst) Inp)
+        Cdr (cdr '@PLst))
+    (if (and (not (isa '(+PSuc) R1)) Cdr)
+      (doparse (eval (cons 'orp Cdr)) Inp)
+      R1)))
 
 (de stringp (Str)
   (label (text "string '@1'" Str)
     (fp 'pack
       (eval (cons 'sequencep (mapcar 'charp (chop Str)))))))
 
-(de manyp (@P)
-  (new '(+Parser)
-  (fill
-    '((Inp)
-       (let R1 (doparse '@P Inp)
-         (if (isa '+PSuc R1)
-           (let R2 (doparse (manyp '@P) (r> R1))
-             (if (isa '(+PSuc) R2)
-               (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2))
-               R1))
-           (new '(+PSuc) '() Inp)))))))
+(defp manyp (@P)
+  (text "many @1" (get (to-parser @P) 'Label))
+  (let R1 (doparse '@P Inp)
+    (if (isa '+PSuc R1)
+      (let R2 (doparse (manyp '@P) (r> R1))
+        (if (isa '(+PSuc) R2)
+          (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2))
+          (prog
+            (add-err R2)
+            R1)))
+      (new '(+PSuc) '() Inp))))
 
 (de many1p (P)
-  (fp '((X) (cons (car X) (cadr X)))
-      (andp P (manyp P))))
+  (label (text "many1 @1" (get (to-parser P) 'Label))
+    (fp '((X) (cons (car X) (cadr X)))
+        (andp P (manyp P)))))
 
-(de optp (@P)
-  (new '(+Parser)
-  (fill
-    '((Inp)
-      (let R (doparse '@P Inp)
-        (if (isa '+PSuc R)
-          R
-          (new '(+PSuc) '() Inp)))))))
+(defp optp (@P)
+  (text "opt @1" (get (to-parser @P) 'Label))
+    (let R (doparse '@P Inp)
+      (if (isa '+PSuc R)
+        R
+        (new '(+PSuc) '() Inp))))
 
-(de droprp (@P1 @P2)
-  (new '(+Parser)
-  (fill
-    '((Inp)
-      (let R1 (doparse '@P1 Inp)
-        (if (isa '+PSuc R1)
-          (let R2 (doparse '@P2 (r> R1))
-            (if (isa '+PSuc R2)
-              (new '(+PSuc) (v> R1) (r> R2))
-              R2))
-          R1))))))
+(defp droprp (@P1 @P2)
+  (text "drop @1" (get (to-parser @P2) 'Label))
+  (let R1 (doparse '@P1 Inp)
+    (if (isa '+PSuc R1)
+      (let R2 (doparse '@P2 (r> R1))
+        (if (isa '+PSuc R2)
+          (new '(+PSuc) (v> R1) (r> R2))
+          (add-err R2)))
+      (add-err R1))))
 
-(de droplp (@P1 @P2)
-  (new '(+Parser)
-  (fill
-    '((Inp)
-      (let R1 (doparse '@P1 Inp)
-        (if (isa '+PSuc R1)
-          (let R2 (doparse '@P2 (r> R1))
-            (if (isa '+PSuc R2)
-              (new '(+PSuc) (v> R2) (r> R2))
-              R2))
-          R1))))))
+(defp droplp (@P1 @P2)
+  (text "drop @1" (get (to-parser @P1) 'Label))
+  (let R1 (doparse '@P1 Inp)
+    (if (isa '+PSuc R1)
+      (let R2 (doparse '@P2 (r> R1))
+        (if (isa '+PSuc R2)
+          (new '(+PSuc) (v> R2) (r> R2))
+          (add-err R2)))
+      (add-err R1))))
 
 (de betweenp (P1 P2 P3)
-  (droprp (droplp P1 P2) P3))
+  (label (text "between @1 and @2" (get (to-parser P1) 'Label) (get (to-parser P3) 'Label))
+    (droprp (droplp P1 P2) P3)))
 
-(de sepbyp (@P @Psep)
-  (new '(+Parser)
-    (fill
-      '((Inp)
-         (let R1 (doparse '@P Inp)
-           (if (isa '+PSuc R1)
-             (let R2 (doparse (manyp (droplp '@Psep '@P)) (r> R1))
-               (if (isa '(+PSuc) R2)
-                 (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2))
-                 R1))
-             (new '(+PSuc) '() Inp)))))))
+(defp sepbyp (@P @Psep)
+  (text "sepby @1" (get (to-parser @Psep) 'Label))
+  (let R1 (doparse '@P Inp)
+    (if (isa '+PSuc R1)
+      (let R2 (doparse (manyp (droplp '@Psep '@P)) (r> R1))
+        (if (isa '(+PSuc) R2)
+          (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2))
+          (prog
+            (add-err R2)
+            R1)))
+      (new '(+PSuc) '() Inp))))
 
-(de sepby1p (@P @Psep)
-  (new '(+Parser)
-    (fill
-      '((Inp)
-         (let R1 (doparse '@P Inp)
-           (if (isa '+PSuc R1)
-             (let R2 (doparse (manyp (droplp '@Psep '@P)) (r> R1))
-               (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2)))
-             R1))))))
+(defp sepby1p (@P @Psep)
+  (text "sepby1 @1" (get (to-parser @Psep) 'Label))
+  (let R1 (doparse '@P Inp)
+    (if (isa '+PSuc R1)
+      (let R2 (doparse (manyp (droplp '@Psep '@P)) (r> R1))
+        (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2)))
+      (add-err R1))))
 
 (def 'intp
   (fp 'list
     (fp 'format
       (andp (optp (orp (charp "+") (charp "-")))
-            (many1p digitp)))))
+            (many1p (digitp))))))
 
-(de ignorep (@P @R)
-  (new '(+Parser)
-    (fill
-      '((Inp)
-        (let R (doparse '@P Inp)
-          (if (isa '+PSuc R)
-            (new '(+PSuc) @R (r> R))
-            R))))))
+(defp ignorep (@P @R)
+  "ignore"
+  (let R (doparse '@P Inp)
+    (if (isa '+PSuc R)
+      (new '(+PSuc) @R (r> R))
+      R)))
 

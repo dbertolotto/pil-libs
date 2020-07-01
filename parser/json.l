@@ -3,23 +3,23 @@
 (symbols 'json 'pico 'parser)
 
 (def 'jnull
-  (label "jnull"
+  (label "null"
     (fp 'any (stringp "null"))))
 
 (def 'jtrue
-  (label "jtrue"
+  (label "true"
     (fp 'any (stringp "true"))))
 
 (def 'jfalse
-  (label "jfalse"
+  (label "false"
     (fp 'any (stringp "false"))))
 
 (def 'jbool
-  (label "jbool"
-    (orp jtrue jfalse)))
+  (orp jtrue jfalse))
 
-(def 'junescaped
-  (satisfy '((X) (not (or (= X "\\") (= X "\""))))))
+(defp junescaped ()
+  "unescaped"
+  (satisfy '((X) (not (or (= X "\\") (= X "\"")))) Inp))
 
 (setq *Jesc
   (list
@@ -34,21 +34,22 @@
     ))
 
 (def 'jescaped
+  (label "escaped"
   (eval
     (cons 'orp
-          (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc))))
+          (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc)))))
 
 (def 'junicode
   (let (bl (charp "\\")
         uc (charp "u")
-        hx (sequencep hexp hexp hexp hexp)
+        hx (sequencep (hexp) (hexp) (hexp) (hexp))
         code (fp 'char (fp 'hex (fp 'pack hx))))
-    (label "junicode"
+    (label "unicode"
       (droplp bl (droplp uc code)))))
 
 (def 'jchar
-  (label "jchar"
-    (orp junescaped jescaped junicode)))
+  (label "char"
+    (orp (junescaped) jescaped junicode)))
 
 (de handle-empty-string (S)
   (if S S 'nils))
@@ -56,7 +57,7 @@
 (def 'jstring
   (let (quotep (charp "\"")
         manych (fp 'pack (manyp jchar)))
-    (label "jstring"
+    (label "string"
       (fp 'handle-empty-string
         (droprp (droplp quotep manych) quotep)))))
 
@@ -78,12 +79,12 @@
 
 (def 'num-int-part
   (andp num-sign
-        (fp 'pack (orp digit0p
-                       (andp digit19p (manyp digitp))))))
+        (fp 'pack (orp (charp "0")
+                       (andp (digit19p) (manyp (digitp)))))))
 
 (def 'num-frac-part
   (droplp (charp ".")
-          (applyp 'pack (many1p digitp))))
+          (applyp 'pack (many1p (digitp)))))
 
 (def 'num-exp
   (orp (charp "e") (charp "E")))
@@ -91,7 +92,7 @@
 (def 'num-exp-part
   (droplp num-exp
          (andp num-sign
-               (applyp 'pack (many1p digitp)))))
+               (applyp 'pack (many1p (digitp))))))
 
 (def 'num-full
   (sequencep num-int-part
@@ -99,11 +100,13 @@
              (optp num-exp-part)))
 
 (def 'jnumber
-  (label "jnumber"
+  (label "number"
     (applyp 'to-num
             (fp '((X) (fish atom X)) num-full))))
 
-(def 'spacesp (manyp wsp))
+(def 'spacesp
+  (label "whitespaces"
+    (manyp (wsp))))
 
 (de to-array (Lst)
   (append '(T) Lst))
@@ -114,7 +117,7 @@
         comma (droprp (charp ",") spacesp)
         value (droprp 'jvalue spacesp)
         values (sepbyp value comma))
-    (label "jarray"
+    (label "array"
       (fp 'to-array (betweenp left values right)))))
 
 (def 'jobject
@@ -126,11 +129,11 @@
         value (droprp 'jvalue spacesp)
         keyval (andp (droprp key colon) value)
         keyvals (sepbyp keyval comma))
-    (label "jobject"
+    (label "object"
       (betweenp left keyvals right))))
 
 (def 'jvalue
-  (label "jvalue"
+  (label "value"
     (orp
       jobject
       jarray

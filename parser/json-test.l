@@ -69,10 +69,10 @@
     ))
 
 (deftest t-junescaped ()
-  (let mju (manyp junescaped)
-    (check=
-      ("a" (parsev junescaped "a"))
-      (T (perr? (parse junescaped "\\")))
+  (let mju (manyp (junescaped))
+    (! check=
+      ("a" (parsev (junescaped) "a"))
+      (T (perr? (parse (junescaped) "\\")))
       ('() (parsev mju "\\"))
       ('("a") (parsev mju "a"))
       ('("a" "b") (parsev mju "ab"))
@@ -118,26 +118,25 @@
 
 (deftest t-jnumber ()
   (let scl0= '((A B) (scl 0) (= A B))
-    (bind '((*Scl . 0))
-      (check 'scl0=
-        (1 (to-num "" "1" "" "" ""))
-        (1 (to-num "+" "1" "" "" ""))
-        (-1 (to-num "-" "1" "" "" ""))
-        (-12 (to-num "-" "1" "2" "" ""))
-        (-1200 (to-num "-" "1" "2" "" "2"))
-        (12 (to-num "" "1" "2" "-" "2"))
-        (0 (parsev jnumber "0"))
-        (0 (parsev jnumber "-0"))
-        (34 (parsev jnumber "34"))
-        (-34 (parsev jnumber "-34"))
-        (345 (parsev jnumber "34.5"))
-        (-345 (parsev jnumber "-34.5"))
-        (12 (parsev jnumber "+1.2e-3"))
-        (1200 (parsev jnumber "+1.2e2"))
-        (12 (parsev jnumber "+1.2e0"))
-        (12 (parsev jnumber "+1.2e-0"))
-        (-12 (parsev jnumber "-1.2e-3"))
-        ))))
+    (check 'scl0=
+      (1 (to-num "" "1" "" "" ""))
+      (1 (to-num "+" "1" "" "" ""))
+      (-1 (to-num "-" "1" "" "" ""))
+      (-12 (to-num "-" "1" "2" "" ""))
+      (-1200 (to-num "-" "1" "2" "" "2"))
+      (12 (to-num "" "1" "2" "-" "2"))
+      (0 (parsev jnumber "0"))
+      (0 (parsev jnumber "-0"))
+      (34 (parsev jnumber "34"))
+      (-34 (parsev jnumber "-34"))
+      (345 (parsev jnumber "34.5"))
+      (-345 (parsev jnumber "-34.5"))
+      (12 (parsev jnumber "+1.2e-3"))
+      (1200 (parsev jnumber "+1.2e2"))
+      (12 (parsev jnumber "+1.2e0"))
+      (12 (parsev jnumber "+1.2e-0"))
+      (-12 (parsev jnumber "-1.2e-3"))
+      )))
 
 (deftest t-jarray ()
   (check=
@@ -175,7 +174,7 @@
     ))
 
 (deftest t-jvalue ()
-  (check=
+  (! check=
     ('(T "a" (("b" false)))
      (parsev jvalue "[\"a\",{\"b\":false}]"))
     ('(("a" (T false)))
