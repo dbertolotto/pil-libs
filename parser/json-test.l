@@ -42,28 +42,28 @@
 (deftest t-jnull ()
   (check=
     ('null (parsev jnull "null"))
-    ((err-help 1 3 "jnull" "r")
+    ((err-help 1 3 "null" "r")
      (parsem jnull "nurl"))
     ))
 
 (deftest t-jtrue ()
   (check=
     ('true (parsev jtrue "true"))
-    ((err-help 1 3 "jtrue" "r")
+    ((err-help 1 3 "true" "r")
      (parsem jtrue "trre"))
     ))
 
 (deftest t-jfalse ()
   (check=
     ('false (parsev jfalse "false"))
-    ((err-help 1 3 "jfalse" "r")
+    ((err-help 1 3 "false" "r")
      (parsem jfalse "farse"))
     ))
 
 (deftest t-jbool ()
   (check=
     ('true (parsev jbool "true"))
-    ((err-help 1 3 "jbool" "r")
+    ((err-help 1 3 "bool" "r")
      (parsem jbool "trre"))
     ('false (parsev jbool "false"))
     ))
@@ -148,11 +148,11 @@
     ('(T "ab" (T true 12) "cd")
      (parsev jarray "[\"ab\",[true,12],\"cd\"]"))
     (T (perr? (parse jarray "[\"a\" \"b\"]")))
-    ((err-help 1 6 "jarray" "\"")
+    ((err-help 1 6 "array" "\"")
      (parsem jarray "[\"a\" \"b\"]"))
-    ((err-help 2 5 "jarray" "\"")
+    ((err-help 2 5 "array" "\"")
      (parsem jarray "[\"a\",\n\"b\" \"c\"]"))
-    ((err-help 1 6 "jarray" "2")
+    ((err-help 1 6 "array" "2")
      (parsem jarray "[\"a\",[\"c\"23],23]"))
     ))
 
@@ -167,9 +167,9 @@
     ('(("b" null) ("c" 12))
      (parsev jobject "{\"b\":null , \"c\":12}"))
     (T (perr? (parse jobject "{\"b\":null \"c\":12}")))
-    ((err-help 1 11 "jobject" "\"")
+    ((err-help 1 11 "object" "\"")
      (parsem jobject "{\"b\":null \"c\":12}"))
-    ((err-help 1 11 "jobject" "\"")
+    ((err-help 1 11 "object" "\"")
      (parsem jobject "{\"a\":{\"b\":null \"c\":12}}"))
     ))
 

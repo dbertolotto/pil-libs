@@ -1,7 +1,7 @@
 # combinatory parser
 (symbols 'parser 'pico)
 
-(setq *ParserError NIL)
+(setq *ParserErrors NIL)
 
 (setq *Lowcase (make (for I 26 (link (char (+ 96 I))))))
 (setq *Uppcase (mapcar uppc *Lowcase))
@@ -79,11 +79,14 @@
   (new '(+PErr) "No more Input" (pos> Inp)))
 
 (de add-err (R)
-  (setq *ParserError (insert 0 *ParserError (m> R)))
+  (setq *ParserErrors
+    (insert 0 *ParserErrors (m> R)))
   R)
 
-(de showerr ()
-  (mapc 'prinl (head 5 *ParserError)))
+(de showerr (N)
+  (for (I . Err) *ParserErrors
+    (T (and N (> I N)) (prinl "..."))
+    (prinl (text "@1. @2" I Err))))
 
 (de defp Args
   (let (@Name (car Args)
@@ -133,7 +136,7 @@
 
 (defp hexp ()
   "hexadecimal"
-    (satisfy '((X) (member X *Hex)) Inp))
+  (satisfy '((X) (member X *Hex)) Inp))
 
 (de to-parser (P)
   (if (isa '(+Parser) P)
@@ -170,24 +173,28 @@
   (text "return @1" X)
   (new '(+PSuc) X Inp))
 
-(de sequencep @PLst
-  (if @PLst
-    (new '(+Parser) "sequence"
-      (fill
-        '((Inp)
-          (let R1 (doparse (car '@PLst) Inp)
-            (if (isa '(+PSuc) R1)
-              (let R2 (doparse (eval (cons 'sequencep (cdr '@PLst))) (r> R1))
-                (if (isa '(+PSuc) R2)
-                  (new '(+PSuc) (cons (v> R1) (v> R2) ) (r> R2))
-                  (add-err R2)))
-              (add-err R1))))))
-    (returnp NIL)))
+(de plist-to-str (PLst)
+  (pack
+    (maplist '((L)
+               (pack (car L) (when (cdr L) ",")))
+             (mapcar '((P)
+                       (get (to-parser P) 'Label))
+                     PLst))))
+
+(defp sequencep @PLst
+  (text "seq of (@1)" (plist-to-str @PLst))
+  (if '@PLst
+    (let R1 (doparse (car '@PLst) Inp)
+      (if (isa '(+PSuc) R1)
+        (let R2 (doparse (eval (cons 'sequencep (cdr '@PLst))) (r> R1))
+          (if (isa '(+PSuc) R2)
+            (new '(+PSuc) (cons (v> R1) (v> R2) ) (r> R2))
+            (add-err R2)))
+        (add-err R1)))
+    (new '(+PSuc) '() Inp)))
 
 (defp orp @PLst
-  (text "any of (@1)" (pack (maplist '((L) (pack (car L) (when (cdr L) ",")))
-                                     (mapcar '((P) (get (to-parser P) 'Label))
-                                             @PLst))))
+  (text "any of (@1)" (plist-to-str @PLst))
   (let (R1 (doparse (car '@PLst) Inp)
         Cdr (cdr '@PLst))
     (if (and (not (isa '(+PSuc) R1)) Cdr)
