@@ -6,6 +6,19 @@
       (reduce Fun (cddr Lst) (Fun (car Lst) (cadr Lst)))
       (reduce Fun (cdr Lst) (Fun Init (car Lst))))))
 
+### State
+
+(de updates (@F)
+  (fill '(State)
+    (list State ('@F State))))
+
+(de sets (@S)
+  (macro
+    (updates '((S) '@S))))
+
+(def 'fetchs
+  (updates '((S) S)))
+
 ### Parser
 
 (de resultp (@V)
@@ -25,12 +38,12 @@
 (de bindp (@P @F)
   (fill '((Inp)
     #(println Inp)
-    (let R1 ('@P Inp)
-      (if R1
-        (let (V1 (caar R1)
-              Rest1 (cadar R1))
-          (('@F V1) Rest1))
-        R1)))))
+    (let R ('@P Inp)
+      (if R
+        (let (V (caar R)
+              Rest (cadar R))
+          (('@F V) Rest))
+        R)))))
 
 (de bind2p (@P1 @P2 @F)
   (eval
