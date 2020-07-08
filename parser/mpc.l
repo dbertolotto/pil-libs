@@ -24,7 +24,7 @@
 
 (de bindp (@P @F)
   (fill '((Inp)
-    (println Inp)
+    #(println Inp)
     (let R1 ('@P Inp)
       (if R1
         (let (V1 (caar R1)
