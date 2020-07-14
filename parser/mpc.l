@@ -22,23 +22,23 @@
 ### Parser
 
 (de resultp (@V)
-  (fill '((Inp)
-    (list (list '@V Inp)))))
+  (fill '((State)
+    (list (list '@V State)))))
 
 (def 'zerop
-  (fill '((Inp)
+  (fill '((State)
     '())))
 
 (def 'itemp
-  (fill '((Inp)
-    (if Inp
-      (list (list (car Inp) (cdr Inp)))
+  (fill '((State)
+    (if State
+      (list (list (car State) (cdr State)))
       '()))))
 
 (de bindp (@P @F)
-  (fill '((Inp)
-    #(println Inp)
-    (let R ('@P Inp)
+  (fill '((State)
+    #(println State)
+    (let R ('@P State)
       (if R
         (let (V (caar R)
               Rest (cadar R))
@@ -82,28 +82,22 @@
 (def 'upperp
   (satp '((X) (and (>= X "A") (<= X "Z")))))
 
-(def 'hexletterp
+(def 'hexlowerp
+  (satp '((X) (and (>= X "a") (<= X "f")))))
+
+(def 'hexupperp
   (satp '((X) (and (>= X "A") (<= X "F")))))
 
 (de plus2p (@P1 @P2)
-  (fill '((Inp)
-    (let (R1 ('@P1 Inp)
-          R2 ('@P2 Inp))
-      (append R1 R2)))))
+  (fill '((State)
+    (let R1 ('@P1 State)
+      (ifn R1
+        (let R2 ('@P2 State)
+          R2)
+        R1)))))
 
 (de plusp @
   (reduce 'plus2p (rest)))
-
-(de orp @Plist
-  (fill '((Inp)
-    (let Car (eval (car '@Plist))
-      (if Car
-        (let (R (Car Inp)
-              Cdr (cdr '@Plist))
-          (if (and (not R) Cdr)
-            ((eval (cons 'orp Cdr)) Inp)
-            R))
-        (zerop Inp))))))
 
 (def 'letterp
   (plusp 'lowerp 'upperp))
@@ -111,11 +105,11 @@
 (def 'alphanump
   (plusp 'letterp 'digitp))
 
-(def 'hexp
-  (plusp 'digitp 'hexletterp))
+(def 'hexletterp
+  (plusp 'hexlowerp 'hexupperp))
 
-(def 'wordp
-  (plusp (mapp 'pack (seqp 'letterp 'wordp)) (resultp "")))
+(def 'hexp
+  (plusp 'hexletterp 'digitp))
 
 (de stringp (String)
   (let Stream (if (atom String) (chop String) String)
@@ -124,21 +118,15 @@
       (resultp ""))))
 
 (de manyp (@P)
-  (fill '((Inp)
-    ((plusp (seqp '@P (manyp '@P)) (resultp '())) Inp))))
+  (fill '((State)
+    ((plusp (seqp '@P (manyp '@P)) (resultp '())) State))))
 
-# alt version of wordp with many
-(def 'wordp2
+(def 'wordp
   (mapp 'pack (manyp 'letterp)))
 
 (def 'identp
   (seqp 'lowerp (manyp 'alphanump)))
 
-(de many1p (@P)
-  (fill '((Inp)
-    ((seqp '@P (manyp '@P)) Inp))))
-
-# alt version
 (de many1p (P)
   (seqp P (manyp P)))
 
@@ -250,7 +238,7 @@
 (def 'jint
   (seqp 'jsign
         (mapp 'pack (plusp (charp "0")
-                         (seqp 'jdigit19 (manyp digitp))))))
+                           (seqp 'jdigit19 (manyp digitp))))))
 
 (def 'jfrac
   (droplp (charp ".")
