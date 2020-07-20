@@ -1,65 +1,56 @@
-# json parser
-(load+ "#parser/parser.l")
-(symbols 'json 'pico 'parser)
+(load "parser.l")
+
+### JSON
 
 (def 'jnull
-  (label "null"
-    (fp 'any (stringp "null"))))
+  (labelp "JSON null"
+    (mapp 'any (stringp "null"))))
 
 (def 'jtrue
-  (label "true"
-    (fp 'any (stringp "true"))))
+  (labelp "JSON true"
+    (mapp 'any (stringp "true"))))
 
 (def 'jfalse
-  (label "false"
-    (fp 'any (stringp "false"))))
+  (labelp "JSON false"
+    (mapp 'any (stringp "false"))))
 
-(def 'jbool
-  (orp jtrue jfalse))
-
-(defp junescaped ()
-  "unescaped"
-  (satisfy '((X) (not (or (= X "\\") (= X "\"")))) Inp))
+(def 'junesc
+  (satp '((X) (not (or (= X "\\") (= X "\""))))))
 
 (setq *Jesc
   (list
     '("\\\"" . "\"")
     '("\\\\" . "\\")
     '("\\/" . "/")
-    '("\\b" . `(char (hex "232B")))
-    '("\\f" . `(char (hex "240A")))
+    '("\\b" . `(uni "232B"))
+    '("\\f" . `(uni "240A"))
     '("\\n" . "\n")
     '("\\r" . "\r")
     '("\\t" . "\t")
     ))
 
-(def 'jescaped
-  (label "escaped"
-  (eval
-    (cons 'orp
-          (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc)))))
+(def 'jesc
+  (apply 'plusp (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc)))
 
-(def 'junicode
+(def 'juni
   (let (bl (charp "\\")
         uc (charp "u")
-        hx (sequencep (hexp) (hexp) (hexp) (hexp))
-        code (fp 'char (fp 'hex (fp 'pack hx))))
-    (label "unicode"
-      (droplp bl (droplp uc code)))))
+        hx (seqp hexp hexp hexp hexp)
+        code (mapp 'uni (mapp 'pack hx)))
+    (droplp bl (droplp uc code))))
 
 (def 'jchar
-  (label "char"
-    (orp (junescaped) jescaped junicode)))
+  (plusp 'junesc 'jesc 'juni))
 
 (de handle-empty-string (S)
   (if S S 'nils))
 
 (def 'jstring
   (let (quotep (charp "\"")
-        manych (fp 'pack (manyp jchar)))
-    (label "string"
-      (fp 'handle-empty-string
-        (droprp (droplp quotep manych) quotep)))))
+        manych (mapp 'pack (manyp 'jchar)))
+    (labelp "JSON string"
+      (mapp 'handle-empty-string
+            (betweenp quotep manych quotep)))))
 
 (de to-num (Sign Int Frac SignExp Exp)
   (let (Expn (format Exp)
@@ -74,131 +65,68 @@
           op (if (= SignExp "-") '/ '*))
       (op Num ExpVal))))
 
-(def 'num-sign
-  (optp (orp (charp "+") (charp "-"))))
+(def 'jdigit19
+  (satp '((X) (and (>= X "1") (<= X "9")))))
 
-(def 'num-int-part
-  (andp num-sign
-        (fp 'pack (orp (charp "0")
-                       (andp (digit19p) (manyp (digitp)))))))
+(def 'jsign
+  (plusp (charp "+") (charp "-") (resultp "")))
 
-(def 'num-frac-part
+(def 'jint
+  (seqp 'jsign
+        (mapp 'pack (plusp (charp "0")
+                           (seqp 'jdigit19 (manyp digitp))))))
+
+(def 'jfrac
   (droplp (charp ".")
-          (applyp 'pack (many1p (digitp)))))
+          (mapp 'pack (many1p digitp))))
 
-(def 'num-exp
-  (orp (charp "e") (charp "E")))
+(def 'jexp
+  (droplp (plusp (charp "e") (charp "E"))
+          (seqp 'jsign
+                (mapp 'pack (many1p digitp)))))
 
-(def 'num-exp-part
-  (droplp num-exp
-         (andp num-sign
-               (applyp 'pack (many1p (digitp))))))
-
-(def 'num-full
-  (sequencep num-int-part
-             (optp num-frac-part)
-             (optp num-exp-part)))
+(def 'jnum
+  (seqp 'jint (optp 'jfrac) (optp 'jexp)))
 
 (def 'jnumber
-  (label "number"
-    (applyp 'to-num
-            (fp '((X) (fish atom X)) num-full))))
-
-(def 'spacesp
-  (label "whitespaces"
-    (manyp (wsp))))
+  (labelp "JSON number"
+    (mapp '((X) (apply 'to-num X))
+          (mapp '((X) (fish atom X)) 'jnum))))
 
 (de to-array (Lst)
   (append '(T) Lst))
 
 (def 'jarray
-  (let (left (droprp (charp "[") spacesp)
-        right (droprp (charp "]") spacesp)
-        comma (droprp (charp ",") spacesp)
-        value (droprp 'jvalue spacesp)
+  (let (left (droprp (charp "[") 'spacesp)
+        right (droprp (charp "]") 'spacesp)
+        comma (droprp (charp ",") 'spacesp)
+        value (droprp 'jvalue 'spacesp)
         values (sepbyp value comma))
-    (label "array"
-      (fp 'to-array (betweenp left values right)))))
+    (labelp "JSON array"
+      (mapp 'to-array (betweenp left values right)))))
 
 (def 'jobject
-  (let (left (droprp (charp "{") spacesp)
-        right (droprp (charp "}") spacesp)
-        comma (droprp (charp ",") spacesp)
-        colon (droprp (charp ":") spacesp)
-        key (droprp jstring spacesp)
-        value (droprp 'jvalue spacesp)
-        keyval (andp (droprp key colon) value)
+  (let (left (droprp (charp "{") 'spacesp)
+        right (droprp (charp "}") 'spacesp)
+        comma (droprp (charp ",") 'spacesp)
+        colon (droprp (charp ":") 'spacesp)
+        key (droprp 'jstring 'spacesp)
+        value (droprp 'jvalue 'spacesp)
+        keyval (seqp (droprp key colon) value)
         keyvals (sepbyp keyval comma))
-    (label "object"
+    (labelp "JSON object"
       (betweenp left keyvals right))))
 
 (def 'jvalue
-  (label "value"
-    (orp
-      jobject
-      jarray
-      jstring
-      jnumber
-      jbool
-      jnull)))
+  (plusp 'jobject 'jarray 'jstring 'jnumber 'jtrue 'jfalse 'jnull))
 
-### print
+(de read-file (Path)
+  (in Path (till NIL T)))
 
-(de to-chars (File)
-  (chop (in File (till NIL T))))
-
-(de to-pinp (File)
-  (new '(+PInp) (to-chars File) (pos0)))
-
-(de read-json (Source)
-  (cond
-    ((isa '+PInp Source) (parse> jvalue Source))
-    ((info Source) (parse> jvalue (to-pinp Source)))
-    ((str? Source) (parse> jvalue (new '(+PInp) (chop Source) (pos0))))
-    ((lst? Source) (parse> jvalue (new '(+PInp) Source (pos0))))
-    (T (throw 'JsonParseError "cannot read source"))))
-
-(setq *Json-pretty-print NIL)
-(setq *Json-pp-space-before-colon NIL)
-(setq *Json-indent-char " ")
-(setq *Json-indent 2)
-
-(de print-json (Jval Indent)
-  (let (Newline (when *Json-pretty-print "\n")
-        Ind (if (and *Json-pretty-print Indent) Indent 0)
-        Ind++ (inc Ind)
-        IndStr (when *Json-pretty-print (need (* Ind *Json-indent) *Json-indent-char))
-        IndStr++ (when *Json-pretty-print (need (* Ind++ *Json-indent) *Json-indent-char)))
-    (cond
-      ((atom Jval) # single value
-        (prin IndStr)
-        (cond
-          ((str? Jval) (print Jval))
-          ((num? Jval) (prin (format Jval *Scl)))
-          ((= 'nils Jval) (prin "\"\""))
-          ((= NIL Jval) (prin "{}"))
-          (T (prin Jval))))
-      ((= T (car Jval)) # array
-        (prin "[" Newline)
-        (map '((X)
-               (let V (car X)
-                 (unless (atom V) (prin IndStr++))
-                 (print-json V Ind++))
-               (prin (when (cdr X) ",") Newline))
-             (cdr Jval))
-        (prin IndStr "]"))
-      (T # object
-        (prin "{" Newline)
-        (map '((X)
-               (print-json (caar X) Ind++)
-               (if *Json-pretty-print
-                 (prin (when *Json-pp-space-before-colon " ") ": ")
-                 (prin ":"))
-               (let V (cadar X)
-                 (if (atom V)
-                   (print-json V)
-                   (print-json V Ind++)))
-               (prin (when (cdr X) ",") Newline))
-             Jval)
-        (prin IndStr "}")))))
+(setq ex01 (read-file "ex01.json"))
+(setq ex02 (read-file "ex02.json"))
+(setq ex03 (read-file "ex03.json"))
+(setq ex04 (read-file "ex04.json"))
+(setq ex05 (read-file "ex05.json"))
+(setq test02 (read-file "test02.json"))
 

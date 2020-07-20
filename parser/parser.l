@@ -1,289 +1,279 @@
-# combinatory parser
-(symbols 'parser 'pico)
+(setq *ParserInput NIL)
 
-(setq *ParserErrors NIL)
+(de reduce (Fun Lst Init)
+  (if (= NIL Lst)
+    Init
+    (if (= NIL Init)
+      (reduce Fun (cddr Lst) (Fun (car Lst) (cadr Lst)))
+      (reduce Fun (cdr Lst) (Fun Init (car Lst))))))
 
-(setq *Lowcase (make (for I 26 (link (char (+ 96 I))))))
-(setq *Uppcase (mapcar uppc *Lowcase))
-(setq *Digit (mapcar format (range 0 9)))
-(setq *Digit19 (mapcar format (range 1 9)))
-(setq *Ws (chop " \t\n\r"))
-(setq *Alpha (conc *Lowcase *Uppcase *Digit))
-(setq *Hex (conc (chop "ABCDEFabcdef") *Digit))
+(de join (Lst Sep)
+  (make
+    (for (L Lst L)
+      (link (pop 'L))
+      (NIL L)
+      (link Sep))))
 
-(class +PLabel)
-(dm label> (NewLabel)
-  (=: Label NewLabel))
+(de uni (Str)
+  (char (hex Str)))
 
-(de label (Label Obj)
-  (when Label
-    (label> Obj Label))
-  Obj)
+### State
 
-(class +Parser +PLabel)
-(dm T (Label Fun)
-  (=: Label Label)
-  (=: Fun Fun))
-(dm parse> (Inp)
-  (label (: Label) ((: Fun) Inp)))
+(class +State)
+(dm T (Pos)
+  (=: P (if Pos Pos (cons 1 1))))   # Position
+(dm row> (Pos)
+  (car (nth *ParserInput (cond
+                           ((not Pos) (car (: P)))
+                           ((num? Pos) Pos)
+                           (T (car Pos))))))
+(dm car> ()
+  (when (row> This)
+    (if (car (nth @ (cdr (: P)))) @ "\n")))
+(dm pos> ()
+  (: P))
+(dm prin> ()
+  (println (: P) (pack (row> This))))
+(dm next> ()
+  (let (Car (car> This)
+        (R . C) (: P)
+        Pos (if (or (= Car "\n") (= Car "\r"))
+              (cons (inc R) 1)
+              (cons R (inc C))))
+    (state Pos)))
+(dm prev> ()
+  (let ((R . C) (: P)
+        Pos (if (= C 1)
+              (cons (dec R) (inc (length (row> This (dec R)))))
+              (cons R (dec C))))
+    (state Pos)))
+(dm copy> ()
+  (state (: P)))
 
-(class +PSuc +PLabel)
-(dm T (V RInp)
-  (=: V V)
-  (=: RInp RInp))
-(dm v> () (: V))
-(dm r> () (: RInp))
+(de state (Pos)
+  (new '(+State) Pos))
 
-(class +PErr +PLabel)
-(dm T (Err Pos)
-  (=: Err Err)
-  (=: Pos Pos))
-(dm m> ()
-  (text "[r:@1,c:@2] Error while parsing @3. @4"
-    (r> (: Pos)) (c> (: Pos)) (: Label) (: Err)))
+(class +Success)
+(dm T (Val State)
+  (=: V Val)
+  (=: S State))
+(dm prin> ()
+  (println (: V))
+  (prin> (: S)))
+(dm pp> ()
+  (println (: V)))
 
-(class +PPos)
-(dm T (Row Col)
-  (=: Row Row)
-  (=: Col Col))
-(dm r> () (: Row))
-(dm r+> () (inc (: Row)))
-(dm c> () (: Col))
-(dm c+> () (inc (: Col)))
+(de success (Val State)
+  (new '(+Success) Val State))
 
-(de pos0 ()
-  (new '(+PPos) 1 1))
+(class +Error)
+(dm T (Msg State Exp)
+  (=: M Msg)
+  (=: S State)
+  (=: E Exp))
+(dm upd-exp> (Exp)
+  (=: E (cons Exp (: E)))
+  This)
+(dm prin> ()
+  (prinl (: M) "\n"
+         (pack (join (: E) " >> ")))
+  (prin> (: S)))
+(dm pp> ()
+  (prinl "\nError while parsing "
+         (pack (join (: E) " >> ")))
+  (let (State (: S)
+        Pos (pos> State)
+        Spc (need (dec (cdr Pos)) " "))
+    (prinl (row> State Pos))
+    (prin Spc (text "\^-- Row: @1, Col: @2 - " (car Pos) (cdr Pos))))
+  (prinl (: M)))
 
-(class +PInp)
-(dm T (Inp Pos)
-  (=: Inp Inp)
-  (=: Pos Pos))
-(dm pos> () (: Pos))
-(dm car> () (car (: Inp)))
-(dm cdr> ()
-  (let (Next (cadr (: Inp))
-        R (if (= Next "\n")
-            (r+> (: Pos))
-            (r> (: Pos)))
-        C (cond
-            ((= Next "\n") 0)
-            ((= Next NIL) (c> (: Pos)))
-            (T (c+> (: Pos)))))
-    #(prinl R " " C " " (: Inp))
-    (new '(+PInp) (cdr (: Inp)) (new '(+PPos) R C))))
+(de error (Msg State Exp)
+  (new '(+Error) Msg (prev> State) Exp))
 
-(de err-parse (Inp X)
-  (new '(+PErr) (text "Unexpected '@1'" X) (pos> Inp)))
+(de error? (Result)
+  (when (isa '(+Error) Result) T))
 
-(de err-no-inp (Inp)
-  (new '(+PErr) "No more Input" (pos> Inp)))
+### Parser
 
-(de add-err (R)
-  (setq *ParserErrors
-    (insert 0 *ParserErrors (m> R)))
-  R)
+(de resultp (@V)
+  (fill '((State)
+    (list (success '@V State)))))
 
-(de showerr (N)
-  (for (I . Err) *ParserErrors
-    (T (and N (> I N)) (prinl "..."))
-    (prinl (text "@1. @2" I Err))))
+(de zerop (@Msg)
+  (fill '((State)
+    (list (error '@Msg State)))))
 
-(de defp Args
-  (let (@Name (car Args)
-        @Params (cadr Args)
-        @Label (caddr Args)
-        @Body (cdddr Args))
-    (macro
-      (de @Name @Params
-        (new '(+Parser) @Label
-          (fill '((Inp)
-            ~'@Body)))))))
+(de labelp (@Label @P)
+  (fill '((State)
+    (let (R ('@P State)
+          R0 (car R))
+      (if (error? R0)
+        (mapcar '((X) (upd-exp> X @Label)) R)
+        R)))))
 
-(de satisfy (Pred Inp)
-  (let X (car> Inp)
-    (cond
-      ((= X NIL) (add-err (err-no-inp Inp)))
-      (('Pred X) (new '(+PSuc) X (cdr> Inp)))
-      (T  (add-err (err-parse Inp X))))))
+(def 'itemp
+  (fill '((State)
+    (if (car> State)
+      (list (success (car> State) (next> State)))
+      (list (error "No more input" State))))))
 
-(defp charp (@C)
-  (text "char '@1'" @C)
-  (satisfy (fill '((X) (= X @C))) Inp))
+(de bindp (@P @F)
+  (fill '((State)
+    #(prin> State)
+    (let (R ('@P State)
+          R0 (car R))
+      (ifn (error? R0)
+        (let (V (get R0 'V)
+              S (get R0 'S))
+          (('@F V) S))
+        R)))))
 
-(defp digit19p ()
-  "digit[1-9]"
-  (satisfy '((X) (member X *Digit19)) Inp))
+(de bind2p (@P1 @P2 @F)
+  (eval
+    (fill
+      '(bindp '@P1
+              '((V1)
+                (let (@V1 V1
+                      F2 (fill '((V2) (resultp ('@F '@V1 V2)))))
+                  (bindp '@P2 F2))))
+      '(@P1 @P2 @F))))
 
-(defp digitp ()
-  "digit"
-  (satisfy '((X) (member X *Digit)) Inp))
+(de seq2p (P1 P2)
+  (bind2p P1 P2 'cons))
 
-(defp wsp ()
-  "whitespace"
-   (satisfy '((X) (member X *Ws)) Inp))
+(de seqp @
+  (reduce 'seq2p (rest)))
 
-(defp lowcp ()
-  "lowercase"
-  (satisfy '((X) (member X *Lowcase)) Inp))
+(de satp (@Pred)
+  (macro
+    (bindp 'itemp
+           '((X)
+             (cond
+               ((= X NIL) (zerop "No more input"))
+               (('@Pred X) (resultp X))
+               (T (zerop (text "Unexpected '@1'" X))))))))
 
-(defp uppcp ()
-  "uppercase"
-  (satisfy '((X) (member X *Uppcase)) Inp))
+(de mapp (@Fn @P)
+  (macro
+    (bindp '@P '((V) (resultp ('@Fn V))))))
 
-(defp alphap ()
-  "alphanumeric"
-  (satisfy '((X) (member X *Alpha)) Inp))
+(de charp (@C)
+  (macro
+    (labelp (text "char '@1'" @C)
+      (satp '((X) (= @C X))))))
 
-(defp hexp ()
-  "hexadecimal"
-  (satisfy '((X) (member X *Hex)) Inp))
+(def 'digitp
+  (labelp "digit"
+    (satp '((X) (and (>= X "0") (<= X "9"))))))
 
-(de to-parser (P)
-  (if (isa '(+Parser) P)
-    P
-    (eval P)))
+(def 'lowerp
+  (satp '((X) (and (>= X "a") (<= X "z")))))
 
-(de doparse (P Inp)
-  (parse> (to-parser P) Inp))
+(def 'upperp
+  (satp '((X) (and (>= X "A") (<= X "Z")))))
 
-(defp andp (@P1 @P2)
-  (text "(@1 AND @2)" (get (to-parser @P1) 'Label) (get (to-parser @P2) 'Label))
-  (let R1 (doparse '@P1 Inp)
-    (if (isa '+PSuc R1)
-      (let R2 (doparse '@P2 (r> R1))
-        (if (isa '+PSuc R2)
-          (new '(+PSuc) (list (v> R1) (v> R2)) (r> R2))
-          (add-err R2)))
-      (add-err R1))))
+(def 'hexlowerp
+  (satp '((X) (and (>= X "a") (<= X "f")))))
 
-(defp fp (@Fn @P)
-  "unknown"
-  (let R (doparse '@P Inp)
-    (if (isa '+PSuc R)
-      (new '(+PSuc) ('@Fn (v> R)) (r> R))
-      (add-err R))))
+(def 'hexupperp
+  (satp '((X) (and (>= X "A") (<= X "F")))))
 
-(de mapp (@Fn P)
-  (fp (fill '((X) (mapcar '@Fn X))) P))
+(de plus2p (@P1 @P2)
+  (fill '((State)
+    (let (R1 ('@P1 State)
+          R10 (car R1))
+      (if (error? R10)
+        (let (R2 ('@P2 State)
+              R20 (car R2))
+          (if (error? R20)
+            (append R2 R1)
+            R2))
+        R1)))))
 
-(de applyp (@Fn P)
-  (fp (fill '((X) (apply '@Fn X))) P))
+(de plusp @
+  (reduce 'plus2p (rest)))
 
-(defp returnp (X)
-  (text "return @1" X)
-  (new '(+PSuc) X Inp))
+(def 'letterp
+  (plusp 'lowerp 'upperp))
 
-(de plist-to-str (PLst)
-  (pack
-    (maplist '((L)
-               (pack (car L) (when (cdr L) ",")))
-             (mapcar '((P)
-                       (get (to-parser P) 'Label))
-                     PLst))))
+(def 'alphanump
+  (labelp "alphanumeric"
+    (plusp 'letterp 'digitp)))
 
-(defp sequencep @PLst
-  (text "seq of (@1)" (plist-to-str @PLst))
-  (if '@PLst
-    (let R1 (doparse (car '@PLst) Inp)
-      (if (isa '(+PSuc) R1)
-        (let R2 (doparse (eval (cons 'sequencep (cdr '@PLst))) (r> R1))
-          (if (isa '(+PSuc) R2)
-            (new '(+PSuc) (cons (v> R1) (v> R2) ) (r> R2))
-            (add-err R2)))
-        (add-err R1)))
-    (new '(+PSuc) '() Inp)))
+(def 'hexletterp
+  (plusp 'hexlowerp 'hexupperp))
 
-(defp orp @PLst
-  (text "any of (@1)" (plist-to-str @PLst))
-  (let (R1 (doparse (car '@PLst) Inp)
-        Cdr (cdr '@PLst))
-    (if (and (not (isa '(+PSuc) R1)) Cdr)
-      (doparse (eval (cons 'orp Cdr)) Inp)
-      R1)))
+(def 'hexp
+  (labelp "hexadecimal"
+    (plusp 'hexletterp 'digitp)))
 
-(de stringp (Str)
-  (label (text "string '@1'" Str)
-    (fp 'pack
-      (eval (cons 'sequencep (mapcar 'charp (chop Str)))))))
+(de stringp (String)
+  (if String
+    (let Stream (chop String)
+      (mapp 'pack
+        (seqp (charp (car Stream)) (stringp (pack (cdr Stream))))))
+    (resultp "")))
 
-(defp manyp (@P)
-  (text "many @1" (get (to-parser @P) 'Label))
-  (let R1 (doparse '@P Inp)
-    (if (isa '+PSuc R1)
-      (let R2 (doparse (manyp '@P) (r> R1))
-        (if (isa '(+PSuc) R2)
-          (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2))
-          (prog
-            (add-err R2)
-            R1)))
-      (new '(+PSuc) '() Inp))))
+(de manyp (@P)
+  (fill '((State)
+    ((plusp (seqp '@P (manyp '@P)) (resultp '())) State))))
+
+(def 'wordp
+  (mapp 'pack (manyp 'letterp)))
+
+(def 'identp
+  (seqp 'lowerp (manyp 'alphanump)))
 
 (de many1p (P)
-  (label (text "many1 @1" (get (to-parser P) 'Label))
-    (fp '((X) (cons (car X) (cadr X)))
-        (andp P (manyp P)))))
+  (seqp P (manyp P)))
 
-(defp optp (@P)
-  (text "opt @1" (get (to-parser @P) 'Label))
-    (let R (doparse '@P Inp)
-      (if (isa '+PSuc R)
-        R
-        (new '(+PSuc) '() Inp))))
-
-(defp droprp (@P1 @P2)
-  (text "drop @1" (get (to-parser @P2) 'Label))
-  (let R1 (doparse '@P1 Inp)
-    (if (isa '+PSuc R1)
-      (let R2 (doparse '@P2 (r> R1))
-        (if (isa '+PSuc R2)
-          (new '(+PSuc) (v> R1) (r> R2))
-          (add-err R2)))
-      (add-err R1))))
-
-(defp droplp (@P1 @P2)
-  (text "drop @1" (get (to-parser @P1) 'Label))
-  (let R1 (doparse '@P1 Inp)
-    (if (isa '+PSuc R1)
-      (let R2 (doparse '@P2 (r> R1))
-        (if (isa '+PSuc R2)
-          (new '(+PSuc) (v> R2) (r> R2))
-          (add-err R2)))
-      (add-err R1))))
-
-(de betweenp (P1 P2 P3)
-  (label (text "between @1 and @2" (get (to-parser P1) 'Label) (get (to-parser P3) 'Label))
-    (droprp (droplp P1 P2) P3)))
-
-(defp sepbyp (@P @Psep)
-  (text "sepby @1" (get (to-parser @Psep) 'Label))
-  (let R1 (doparse '@P Inp)
-    (if (isa '+PSuc R1)
-      (let R2 (doparse (manyp (droplp '@Psep '@P)) (r> R1))
-        (if (isa '(+PSuc) R2)
-          (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2))
-          (prog
-            (add-err R2)
-            R1)))
-      (new '(+PSuc) '() Inp))))
-
-(defp sepby1p (@P @Psep)
-  (text "sepby1 @1" (get (to-parser @Psep) 'Label))
-  (let R1 (doparse '@P Inp)
-    (if (isa '+PSuc R1)
-      (let R2 (doparse (manyp (droplp '@Psep '@P)) (r> R1))
-        (new '(+PSuc) (cons (v> R1) (v> R2)) (r> R2)))
-      (add-err R1))))
+(def 'natp
+  (bindp (many1p 'digitp) '((X) (resultp (format X)))))
 
 (def 'intp
-  (fp 'list
-    (fp 'format
-      (andp (optp (orp (charp "+") (charp "-")))
-            (many1p (digitp))))))
+  (bindp (seqp (plusp (charp "-") (charp "+") (resultp "")) (many1p 'digitp))
+         '((V) (resultp (format (pack V))))))
 
-(defp ignorep (@P @R)
-  "ignore"
-  (let R (doparse '@P Inp)
-    (if (isa '+PSuc R)
-      (new '(+PSuc) @R (r> R))
-      R)))
+(def 'spacep
+  (satp '((X) (member X '(" " "\t" "\n" "\r")))))
+
+(def 'spacesp
+  (manyp 'spacep))
+
+(def 'spaces1p
+  (many1p 'spacep))
+
+(de droplp (P1 P2)
+  (bind2p P1 P2 '((V1 V2) V2)))
+
+(de droprp (P1 P2)
+  (bind2p P1 P2 '((V1 V2) V1)))
+
+(de sepby1p (P Sep)
+  (seqp P (manyp (droplp Sep P))))
+
+(de betweenp (Open P Close)
+  (droplp Open (droprp P Close)))
+
+(de sepbyp (P Sep)
+  (plusp (sepby1p P Sep) (resultp '())))
+
+(def 'intsp
+  (betweenp (charp "[") (sepby1p 'intp (charp ",")) (charp "]")))
+
+(de ignorep (@P @W)
+  (macro
+    (bindp '@P '((V) (resultp '@W)))))
+
+(de optp (P)
+  (plusp P (resultp '())))
+
+# general parsing function
+(de parse (P String)
+  (let (*ParserInput (split (chop String) "\n" "\r")
+        Result ((droplp 'spacesp P) (state)))
+    (if (error? (car Result))
+      (mapc 'pp> Result)
+      (with (car Result) (: V)))))
 

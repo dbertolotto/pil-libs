@@ -1,4 +1,3 @@
-(setq *ParserInput NIL)
 
 (de reduce (Fun Lst Init)
   (if (= NIL Lst)
@@ -7,89 +6,83 @@
       (reduce Fun (cddr Lst) (Fun (car Lst) (cadr Lst)))
       (reduce Fun (cdr Lst) (Fun Init (car Lst))))))
 
-(de join (Lst Sep)
-  (make
-    (for (L Lst L)
-      (link (pop 'L))
-      (NIL L)
-      (link Sep))))
-
 ### State
-
-(class +State)
-(dm T (Pos)
-  (=: P (if Pos Pos (cons 1 1))))   # Position
-(dm row> (Pos)
-  (car (nth *ParserInput (cond
-                           ((not Pos) (car (: P)))
-                           ((num? Pos) Pos)
-                           (T (car Pos))))))
-(dm car> ()
-  (when (row> This)
-    (if (car (nth @ (cdr (: P)))) @ "\n")))
-(dm pos> ()
-  (: P))
-(dm prin> ()
-  (println (: P) (pack (row> This))))
-(dm next> ()
-  (let (Car (car> This)
-        (R . C) (: P)
-        Pos (if (or (= Car "\n") (= Car "\r"))
-              (cons (inc R) 1)
-              (cons R (inc C))))
-    (state Pos)))
-(dm prev> ()
-  (let ((R . C) (: P)
-        Pos (if (= C 1)
-              (cons (dec R) (inc (length (row> This (dec R)))))
-              (cons R (dec C))))
-    (state Pos)))
-(dm copy> ()
-  (state (: P)))
-
-(de state (Pos)
-  (new '(+State) Pos))
 
 (class +Success)
 (dm T (Val State)
   (=: V Val)
   (=: S State))
-(dm prin> ()
-  (println (: V))
-  (prin> (: S)))
-(dm pp> ()
-  (println (: V)))
 
 (de success (Val State)
   (new '(+Success) Val State))
 
 (class +Error)
-(dm T (Msg State Exp)
-  (=: M Msg)
-  (=: S State)
-  (=: E Exp))
-(dm upd-exp> (Exp)
-  (=: E (cons Exp (: E)))
-  This)
-(dm prin> ()
-  (prinl (: M) "\n"
-         (pack (join (: E) " >> ")))
-  (prin> (: S)))
-(dm pp> ()
-  (prinl "\nError while parsing "
-         (pack (join (: E) " >> ")))
-  (let (State (: S)
-        Pos (pos> State)
-        Spc (need (dec (cdr Pos)) " "))
-    (prinl (row> State Pos))
-    (prin Spc (text "\^-- Row: @1, Col: @2 - " (car Pos) (cdr Pos))))
-  (prinl (: M)))
+(dm T (State)
+  (=: S State))
 
-(de error (Msg State Exp)
-  (new '(+Error) Msg (prev> State) Exp))
+(de error (State)
+  (new '(+Error) State))
 
-(de error? (Result)
-  (when (isa '(+Error) Result) T))
+(de error? (Obj)
+  (when (isa '(+Error) Obj) T))
+
+(de updates (@F)
+  (fill '(State)
+    (list State ('@F State))))
+
+(de sets (@S)
+  (macro
+    (updates '((S) '@S))))
+
+(def 'fetchs
+  (updates '((S) S)))
+
+(class +State)
+(dm T (Inp Pos Err Exp)
+  (=: Inp Inp)
+  (=: Pos Pos)
+  (=: Err Err)
+  (=: Exp Exp))
+(dm car> ()
+  (car (: Inp)))
+(dm cdr> ()
+  (cdr (: Inp)))
+(dm next> ()
+  (let (Cdr (cdr> This)
+        NPos (next-pos This))
+  (new '(+State) Cdr NPos (: Err) (: Exp))))
+(dm r> ()
+  (car (: Pos)))
+(dm c> ()
+  (cdr (: Pos)))
+(dm err> (Msg)
+  (new '(+State) (: Inp) (: Pos) Msg (: Exp)))
+(dm exp> (Msg)
+  (new '(+State) (: Inp) (: Pos) (: Err)
+    (if (: Exp)
+      (cons Msg " >> " @)
+      Msg)))
+(dm rexp> ()
+  (new '(+State) (: Inp) (: Pos) (: Err) '()))
+(dm prinl> ()
+  (prinl
+    (text "@1\n\^-- row: @2, col: @3 - Unexpected '@4'. Expected @5." (pack (head 10 (: Inp))) (car (: Pos)) (cdr (: Pos)) (: Err) (: Exp))))
+
+(de pos (Row Col)
+  (cons Row Col))
+
+(de next-pos (State)
+  (let (Car (car> State)
+        Cdr (cdr> State))
+    (cond
+      ((and Cdr (or (= Car "\n") (= Car "\r")))
+         (pos (inc (r> State)) 1))
+      (Cdr (pos (r> State) (inc (c> State))))
+      (T (pos -1 -1)))))
+
+(de err? (Res)
+  (let State (caadar Res)
+    (get State 'Err)))
 
 ### Parser
 
@@ -97,32 +90,31 @@
   (fill '((State)
     (list (success '@V State)))))
 
-(de zerop (@Msg)
+(de errorp (@Err)
   (fill '((State)
-    (list (error '@Msg State)))))
+    (let S (car State)
+      (list (list NIL (list (err> S @Err))))))))
 
 (de labelp (@Label @P)
   (fill '((State)
-    (let (R ('@P State)
-          R0 (car R))
-      (if (error? R0)
-        (mapcar '((X) (upd-exp> X @Label)) R)
-        R)))))
+    (let R ('@P State)
+      (if (err? R)
+        (list (list (caar R) (list (exp> (caadar R) @Label))))
+        (list (list (caar R) (list (rexp> (caadar R))))))))))
 
 (def 'itemp
   (fill '((State)
-    (if (car> State)
-      (list (success (car> State) (next> State)))
-      (list (error "No more input" State))))))
+    (let S (car State)
+      (if (car> S)
+        (list (list (car> S) (list (next> S))))
+        (list (list NIL (list (err> S "no more input")))))))))
 
 (de bindp (@P @F)
   (fill '((State)
-    #(prin> State)
-    (let (R ('@P State)
-          R0 (car R))
-      (ifn (error? R0)
-        (let (V (get R0 'V)
-              S (get R0 'S))
+    (let R ('@P State)
+      (ifn (error? R)
+        (let (V (caar R)
+              S (cadar R))
           (('@F V) S))
         R)))))
 
@@ -147,9 +139,9 @@
     (bindp 'itemp
            '((X)
              (cond
-               ((= X NIL) (zerop "No more input"))
+               ((= X NIL) (errorp "no more input"))
                (('@Pred X) (resultp X))
-               (T (zerop (text "Unexpected '@1'" X))))))))
+               (T (errorp (text "@1" X))))))))
 
 (de mapp (@Fn @P)
   (macro
@@ -176,15 +168,16 @@
 (def 'hexupperp
   (satp '((X) (and (>= X "A") (<= X "F")))))
 
+(de merge (R1 R2)
+  (list (list (caar R2) (append (cadar R2) (cadar R1)))))
+
 (de plus2p (@P1 @P2)
   (fill '((State)
-    (let (R1 ('@P1 State)
-          R10 (car R1))
-      (if (error? R10)
-        (let (R2 ('@P2 State)
-              R20 (car R2))
-          (if (error? R20)
-            (append R2 R1)
+    (let R1 ('@P1 State)
+      (if (err? R1)
+        (let R2 ('@P2 State)
+          (if (err? R2)
+            (merge R1 R2)
             R2))
         R1)))))
 
@@ -206,11 +199,10 @@
     (plusp 'hexletterp 'digitp)))
 
 (de stringp (String)
-  (if String
-    (let Stream (chop String)
-      (mapp 'pack
-        (seqp (charp (car Stream)) (stringp (pack (cdr Stream))))))
-    (resultp "")))
+  (let Stream (if (atom String) (chop String) String)
+    (if Stream
+      (mapp 'pack (seqp (charp (car Stream)) (stringp (cdr Stream))))
+      (resultp ""))))
 
 (de manyp (@P)
   (fill '((State)
@@ -233,7 +225,8 @@
          '((V) (resultp (format (pack V))))))
 
 (def 'spacep
-  (satp '((X) (member X '(" " "\t" "\n" "\r")))))
+  (labelp "whitespace"
+    (satp '((X) (member X '(" " "\t" "\n" "\r"))))))
 
 (def 'spacesp
   (manyp 'spacep))
@@ -266,15 +259,15 @@
 ### JSON
 
 (def 'jnull
-  (labelp "JSON null"
+  (labelp "jnull"
     (mapp 'any (stringp "null"))))
 
 (def 'jtrue
-  (labelp "JSON true"
+  (labelp "jtrue"
     (mapp 'any (stringp "true"))))
 
 (def 'jfalse
-  (labelp "JSON false"
+  (labelp "jfalse"
     (mapp 'any (stringp "false"))))
 
 (def 'junesc
@@ -311,7 +304,7 @@
 (def 'jstring
   (let (quotep (charp "\"")
         manych (mapp 'pack (manyp 'jchar)))
-    (labelp "JSON string"
+    (labelp "jstring"
       (mapp 'handle-empty-string
             (betweenp quotep manych quotep)))))
 
@@ -352,7 +345,7 @@
   (seqp 'jint (optp 'jfrac) (optp 'jexp)))
 
 (def 'jnumber
-  (labelp "JSON number"
+  (labelp "jnumber"
     (mapp '((X) (apply 'to-num X))
           (mapp '((X) (fish atom X)) 'jnum))))
 
@@ -365,7 +358,7 @@
         comma (droprp (charp ",") 'spacesp)
         value (droprp 'jvalue 'spacesp)
         values (sepbyp value comma))
-    (labelp "JSON array"
+    (labelp "jarray"
       (mapp 'to-array (betweenp left values right)))))
 
 (def 'jobject
@@ -377,18 +370,14 @@
         value (droprp 'jvalue 'spacesp)
         keyval (seqp (droprp key colon) value)
         keyvals (sepbyp keyval comma))
-    (labelp "JSON object"
+    (labelp "jobject"
       (betweenp left keyvals right))))
 
 (def 'jvalue
   (plusp 'jobject 'jarray 'jstring 'jnumber 'jtrue 'jfalse 'jnull))
 
 (de parse (P String)
-  (let (*ParserInput (split (chop String) "\n" "\r")
-        Result ((droplp 'spacesp P) (state)))
-    (if (error? (car Result))
-      (mapc 'pp> Result)
-      (with (car Result) (: V)))))
+  ((droplp 'spacesp P) (list (new '(+State) (chop String) (pos 1 1)))))
 
 (de read-file (Path)
   (in Path (till NIL T)))
