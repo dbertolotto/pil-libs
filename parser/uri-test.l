@@ -1,0 +1,14 @@
+(load "uri.l")
+
+(println (parse 'URI "ftp://ftp.is.co.za/rfc/rfc1808.txt"))
+(println (parse 'URI "http://www.ietf.org/rfc/rfc2396.txt"))
+(println (parse 'URI "ldap://[2001:db8::7]/c=GB?objectClass?one"))
+(println (parse 'URI "mailto:John.Doe@example.com"))
+(println (parse 'URI "news:comp.infosystems.www.servers.unix"))
+(println (parse 'URI "tel:+1-816-555-1212"))
+(println (parse 'URI "telnet://192.0.2.16:80/"))
+(println (parse 'URI "urn:oasis:names:specification:docbook:dtd:xml:4.1.2"))
+(println (parse 'URI "foo://example.com:8042/over/there?name=ferret#nose"))
+(println (parse 'URI "urn:example:animal:ferret:nose"))
+(println (parse 'URI "https://[2001:db8:85a3:8d3:1319:8a2e:370:7348]:443/"))
+
