@@ -40,17 +40,17 @@
         Pos (if (or (= Car "\n") (= Car "\r"))
               (cons (inc R) 1)
               (cons R (inc C))))
-    (state Pos)))
+    (newstate Pos)))
 (dm prev> ()
   (let ((R . C) (: P)
         Pos (if (= C 1)
               (cons (dec R) (inc (length (row> This (dec R)))))
               (cons R (dec C))))
-    (state Pos)))
+    (newstate Pos)))
 (dm copy> ()
-  (state (: P)))
+  (newstate (: P)))
 
-(de state (Pos)
+(de newstate (Pos)
   (new '(+State) Pos))
 
 (class +Success)
@@ -277,3 +277,25 @@
       (mapc 'pp> Result)
       (with (car Result) (: V)))))
 
+# general definitions
+
+(def 'digit
+  'digitp)
+
+(def 'alpha
+  'letterp)
+
+(def 'hexdig
+  'hexp)
+
+(def 'sp
+  (charp " "))
+
+(def 'htab
+   (charp "\t"))
+
+ (def 'cr
+   (charp "\r"))
+
+ (def 'crlf
+   (charp "\n"))
