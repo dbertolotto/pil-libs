@@ -272,7 +272,7 @@
 # general parsing function
 (de parse (P String)
   (let (*ParserInput (split (chop String) "\n" "\r")
-        Result ((droplp 'spacesp P) (state)))
+        Result ((droplp 'spacesp P) (newstate)))
     (if (error? (car Result))
       (mapc 'pp> Result)
       (with (car Result) (: V)))))
