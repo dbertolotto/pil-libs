@@ -86,7 +86,8 @@
         Spc (need (dec (cdr Pos)) " "))
     (prinl (row> State Pos))
     (prin Spc (text "\^-- Row: @1, Col: @2 - " (car Pos) (cdr Pos))))
-  (prinl (: M)))
+  (prin "Unexpected: ")
+  (println (: M)))
 
 (de error (Msg State Exp)
   (new '(+Error) Msg (prev> State) Exp))
@@ -140,7 +141,9 @@
       '(@P1 @P2 @F))))
 
 (de seq2p (P1 P2)
-  (bind2p P1 P2 'cons))
+  (cond
+    ((and P1 P2) (bind2p P1 P2 'cons))
+    ((or P1 P2) @)))
 
 (de seqp @
   (reduce 'seq2p (rest)))
@@ -152,7 +155,7 @@
              (cond
                ((= X NIL) (zerop "No more input"))
                (('@Pred X) (resultp X))
-               (T (zerop (text "Unexpected '@1'" X))))))))
+               (T (zerop X)))))))
 
 (de mapp (@Fn @P)
   (macro
@@ -180,16 +183,19 @@
   (satp '((X) (and (>= X "A") (<= X "F")))))
 
 (de plus2p (@P1 @P2)
-  (fill '((State)
-    (let (R1 ('@P1 State)
-          R10 (car R1))
-      (if (error? R10)
-        (let (R2 ('@P2 State)
-              R20 (car R2))
-          (if (error? R20)
-            (append R2 R1)
-            R2))
-        R1)))))
+  (cond
+    ((and @P1 @P2)
+      (fill '((State)
+        (let (R1 ('@P1 State)
+              R10 (car R1))
+          (if (error? R10)
+            (let (R2 ('@P2 State)
+                  R20 (car R2))
+              (if (error? R20)
+                (append R2 R1)
+                R2))
+            R1)))))
+    ((or @P1 @P2) @)))
 
 (de plusp @
   (reduce 'plus2p (rest)))
@@ -268,6 +274,13 @@
 
 (de optp (P)
   (plusp P (resultp '())))
+
+(de manyxyp (P X Y)
+  (let (Seqs (append (maplist '((L) (cons 'seqp L))
+                              (need Y P))
+                     (list (resultp "")))
+        Cut (head (inc (- Y X)) Seqs))
+    (eval (cons 'plusp Cut))))
 
 # general parsing function
 (de parse (P String)
