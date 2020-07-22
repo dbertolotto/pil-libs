@@ -101,6 +101,9 @@
   (fill '((State)
     (list (success '@V State)))))
 
+(def 'nilp
+  (resultp NIL))
+
 (de zerop (@Msg)
   (fill '((State)
     (list (error '@Msg State)))))
@@ -219,11 +222,11 @@
     (let Stream (chop String)
       (mapp 'pack
         (seqp (charp (car Stream)) (stringp (pack (cdr Stream))))))
-    (resultp "")))
+    'nilp))
 
 (de manyp (@P)
   (fill '((State)
-    ((plusp (seqp '@P (manyp '@P)) (resultp '())) State))))
+    ((plusp (seqp '@P (manyp '@P)) 'nilp) State))))
 
 (def 'wordp
   (mapp 'pack (manyp 'letterp)))
@@ -238,7 +241,7 @@
   (bindp (many1p 'digitp) '((X) (resultp (format X)))))
 
 (def 'intp
-  (bindp (seqp (plusp (charp "-") (charp "+") (resultp "")) (many1p 'digitp))
+  (bindp (seqp (plusp (charp "-") (charp "+") 'nilp) (many1p 'digitp))
          '((V) (resultp (format (pack V))))))
 
 (def 'spacep
@@ -263,7 +266,7 @@
   (droplp Open (droprp P Close)))
 
 (de sepbyp (P Sep)
-  (plusp (sepby1p P Sep) (resultp '())))
+  (plusp (sepby1p P Sep) 'nilp))
 
 (def 'intsp
   (betweenp (charp "[") (sepby1p 'intp (charp ",")) (charp "]")))
@@ -273,12 +276,11 @@
     (bindp '@P '((V) (resultp '@W)))))
 
 (de optp (P)
-  (plusp P (resultp '())))
+  (plusp P 'nilp))
 
 (de manyxyp (P X Y)
-  (let (Seqs (append (maplist '((L) (cons 'seqp L))
-                              (need Y P))
-                     (list (resultp "")))
+  (let (Seqs (append (maplist '((L) (cons 'seqp L)) (need Y P))
+                     (list 'nilp))
         Cut (head (inc (- Y X)) Seqs))
     (eval (cons 'plusp Cut))))
 

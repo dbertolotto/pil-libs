@@ -53,32 +53,67 @@
 (def 'IPvFuture
   (seqp (charp "v") (many1p 'hexdig) (charp ".") (many1p (plusp 'unreserved 'sub-delims (charp ":")))))
 
+(def 'h16
+  (mapp 'pack (manyxyp 'hexdig 1 4)))
+
 (def 'h16:
   (seqp 'h16 (charp ":")))
 
-(def 'oh16:
-  (optp 'h16:))
-
-(def 'dcolon
-  (stringp "::"))
-
-(def 'IPv6address
-  (plusp
-    (seqp                                                                      'h16: 'h16: 'h16: 'h16: 'h16: 'h16: 'ls32)
-    (seqp                                                              'dcolon 'h16: 'h16: 'h16: 'h16: 'h16:       'ls32)
-    (seqp (optp                                                 'h16)  'dcolon 'h16: 'h16: 'h16: 'h16:             'ls32)
-    (seqp (optp (seqp 'oh16:                                    'h16)) 'dcolon 'h16: 'h16: 'h16:                   'ls32)
-    (seqp (optp (seqp 'oh16: 'oh16:                             'h16)) 'dcolon 'h16: 'h16:                         'ls32)
-    (seqp (optp (seqp 'oh16: 'oh16: 'oh16:                      'h16)) 'dcolon 'h16:                               'ls32)
-    (seqp (optp (seqp 'oh16: 'oh16: 'oh16: 'oh16:               'h16)) 'dcolon                                     'ls32)
-    (seqp (optp (seqp 'oh16: 'oh16: 'oh16: 'oh16: 'oh16:        'h16)) 'dcolon                                     'h16)
-    (seqp (optp (seqp 'oh16: 'oh16: 'oh16: 'oh16: 'oh16: 'oh16: 'h16)) 'dcolon)))
-
-(def 'h16
-  (mapp 'pack (seqp 'hexdig (optp 'hexdig) (optp 'hexdig) (optp 'hexdig))))
-
 (def 'ls32
   (plusp (seqp 'h16 (charp ":") 'h16) IPv4adress))
+
+(def 'IPv6address
+  (let dcolon (stringp "::")
+    (plusp
+      (seqp                                               (manyxyp 'h16: 6 6) 'ls32)
+      (seqp                                        dcolon (manyxyp 'h16: 5 5) 'ls32)
+      (seqp (optp                           'h16)  dcolon (manyxyp 'h16: 4 4) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 0 1) 'h16)) dcolon (manyxyp 'h16: 3 3) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 0 2) 'h16)) dcolon (manyxyp 'h16: 2 2) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 0 3) 'h16)) dcolon (manyxyp 'h16: 1 1) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 0 4) 'h16)) dcolon                     'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 0 5) 'h16)) dcolon                     'h16)
+      (seqp (optp (seqp (manyxyp 'h16: 0 6) 'h16)) dcolon))))
+
+(def 'IPv6address # this had to be splitted in order to avoid ambiguities
+  (let dcolon (stringp "::")
+    (plusp
+      (seqp                                               (manyxyp 'h16: 6 6) 'ls32)
+      (seqp                                        dcolon (manyxyp 'h16: 5 5) 'ls32)
+      (seqp (optp                           'h16)  dcolon (manyxyp 'h16: 4 4) 'ls32)
+      # split
+      (seqp (optp                           'h16)  dcolon (manyxyp 'h16: 3 3) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 1 1) 'h16)) dcolon (manyxyp 'h16: 3 3) 'ls32)
+      # split
+      (seqp (optp                           'h16)  dcolon (manyxyp 'h16: 2 2) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 1 1) 'h16)) dcolon (manyxyp 'h16: 2 2) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 2 2) 'h16)) dcolon (manyxyp 'h16: 2 2) 'ls32)
+      # split
+      (seqp (optp                           'h16)  dcolon (manyxyp 'h16: 1 1) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 1 1) 'h16)) dcolon (manyxyp 'h16: 1 1) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 2 2) 'h16)) dcolon (manyxyp 'h16: 1 1) 'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 3 3) 'h16)) dcolon (manyxyp 'h16: 1 1) 'ls32)
+      # split
+      (seqp (optp                           'h16)  dcolon                     'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 1 1) 'h16)) dcolon                     'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 2 2) 'h16)) dcolon                     'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 3 3) 'h16)) dcolon                     'ls32)
+      (seqp (optp (seqp (manyxyp 'h16: 4 4) 'h16)) dcolon                     'ls32)
+      # split
+      (seqp (optp                           'h16)  dcolon                     'h16)
+      (seqp (optp (seqp (manyxyp 'h16: 1 1) 'h16)) dcolon                     'h16)
+      (seqp (optp (seqp (manyxyp 'h16: 2 2) 'h16)) dcolon                     'h16)
+      (seqp (optp (seqp (manyxyp 'h16: 3 3) 'h16)) dcolon                     'h16)
+      (seqp (optp (seqp (manyxyp 'h16: 4 4) 'h16)) dcolon                     'h16)
+      (seqp (optp (seqp (manyxyp 'h16: 5 5) 'h16)) dcolon                     'h16)
+      # split
+      (seqp (optp                           'h16)  dcolon)
+      (seqp (optp (seqp (manyxyp 'h16: 1 1) 'h16)) dcolon)
+      (seqp (optp (seqp (manyxyp 'h16: 2 2) 'h16)) dcolon)
+      (seqp (optp (seqp (manyxyp 'h16: 3 3) 'h16)) dcolon)
+      (seqp (optp (seqp (manyxyp 'h16: 4 4) 'h16)) dcolon)
+      (seqp (optp (seqp (manyxyp 'h16: 5 5) 'h16)) dcolon)
+      (seqp (optp (seqp (manyxyp 'h16: 6 6) 'h16)) dcolon))))
 
 (def 'IPv4address
   (seqp 'dec-octet (charp ".") 'dec-octet (charp ".") 'dec-octet (charp ".") 'dec-octet))
