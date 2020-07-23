@@ -136,12 +136,11 @@
 (de bind2p (@P1 @P2 @F)
   (eval
     (fill
-      '(bindp '@P1
-              '((V1)
-                (let (@V1 V1
-                      F2 (fill '((V2) (resultp ('@F '@V1 V2)))))
-                  (bindp '@P2 F2))))
-      '(@P1 @P2 @F))))
+      '(bindp '@P1 '((@V1)
+        (bindp '@P2 (fill '((V2)
+          (resultp ('@F '@V1 V2)))
+        '@V1))))
+      '(@F @P1 @P2))))
 
 (de seq2p (P1 P2)
   (cond
@@ -149,7 +148,7 @@
     ((or P1 P2) @)))
 
 (de seqp @
-  (reduce 'seq2p (rest)))
+  (seq2p (next) (when (args) (pass 'seqp))))
 
 (de satp (@Pred)
   (macro
@@ -218,11 +217,8 @@
     (plusp 'hexletterp 'digitp)))
 
 (de stringp (String)
-  (if String
-    (let Stream (chop String)
-      (mapp 'pack
-        (seqp (charp (car Stream)) (stringp (pack (cdr Stream))))))
-    'nilp))
+  (mapp 'pack
+    (apply 'seqp (mapcar 'charp (chop String)))))
 
 (de manyp (@P)
   (fill '((State)
