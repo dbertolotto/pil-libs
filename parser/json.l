@@ -69,7 +69,7 @@
   (satp '((X) (and (>= X "1") (<= X "9")))))
 
 (def 'jsign
-  (plusp (charp "+") (charp "-") (resultp "")))
+  (plusp (charp "+") (charp "-") 'nilp))
 
 (def 'jint
   (seqp 'jsign

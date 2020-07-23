@@ -1,12 +1,3 @@
-(setq *ParserInput NIL)
-
-(de reduce (Fun Lst Init)
-  (if (= NIL Lst)
-    Init
-    (if (= NIL Init)
-      (reduce Fun (cddr Lst) (Fun (car Lst) (cadr Lst)))
-      (reduce Fun (cdr Lst) (Fun Init (car Lst))))))
-
 (de join (Lst Sep)
   (make
     (for (L Lst L)
@@ -19,14 +10,24 @@
 
 ### State
 
+(class +Input)
+(dm T (String)
+  (=: I (split (chop String) "\n" "\r")))   # Input
+(dm inp> ()
+  (: I))
+
+(de newinput (String)
+  (new '(+Input) String))
+
 (class +State)
-(dm T (Pos)
+(dm T (Inp Pos)
+  (=: I Inp)                        # Input
   (=: P (if Pos Pos (cons 1 1))))   # Position
 (dm row> (Pos)
-  (car (nth *ParserInput (cond
-                           ((not Pos) (car (: P)))
-                           ((num? Pos) Pos)
-                           (T (car Pos))))))
+  (car (nth (inp> (: I)) (cond
+                    ((not Pos) (car (: P)))
+                    ((num? Pos) Pos)
+                    (T (car Pos))))))
 (dm car> ()
   (when (row> This)
     (if (car (nth @ (cdr (: P)))) @ "\n")))
@@ -40,18 +41,16 @@
         Pos (if (or (= Car "\n") (= Car "\r"))
               (cons (inc R) 1)
               (cons R (inc C))))
-    (newstate Pos)))
+    (newstate (: I) Pos)))
 (dm prev> ()
   (let ((R . C) (: P)
         Pos (if (= C 1)
               (cons (dec R) (inc (length (row> This (dec R)))))
               (cons R (dec C))))
-    (newstate Pos)))
-(dm copy> ()
-  (newstate (: P)))
+    (newstate (: I) Pos)))
 
-(de newstate (Pos)
-  (new '(+State) Pos))
+(de newstate (Inp Pos)
+  (new '(+State) Inp Pos))
 
 (class +Success)
 (dm T (Val State)
@@ -101,6 +100,7 @@
   (fill '((State)
     (list (success '@V State)))))
 
+# this is used often, so it deserves a parser
 (def 'nilp
   (resultp NIL))
 
@@ -143,9 +143,9 @@
       '(@F @P1 @P2))))
 
 (de seq2p (P1 P2)
-  (cond
-    ((and P1 P2) (bind2p P1 P2 'cons))
-    ((or P1 P2) @)))
+  (if (and P1 P2)
+    (bind2p P1 P2 'cons)
+    (or P1 P2))) # return the single parser
 
 (de seqp @
   (seq2p (next) (when (args) (pass 'seqp))))
@@ -185,22 +185,21 @@
   (satp '((X) (and (>= X "A") (<= X "F")))))
 
 (de plus2p (@P1 @P2)
-  (cond
-    ((and @P1 @P2)
-      (fill '((State)
-        (let (R1 ('@P1 State)
-              R10 (car R1))
-          (if (error? R10)
-            (let (R2 ('@P2 State)
-                  R20 (car R2))
-              (if (error? R20)
-                (append R2 R1)
-                R2))
-            R1)))))
-    ((or @P1 @P2) @)))
+  (if (and @P1 @P2)
+    (fill '((State)
+      (let (R1 ('@P1 State)
+            R10 (car R1))
+        (if (error? R10)
+          (let (R2 ('@P2 State)
+                R20 (car R2))
+            (if (error? R20)
+              (append R2 R1)
+              R2))
+          R1))))
+    (or @P1 @P2))) # return the single parser
 
 (de plusp @
-  (reduce 'plus2p (rest)))
+  (plus2p (next) (when (args) (pass 'plusp))))
 
 (def 'letterp
   (plusp 'lowerp 'upperp))
@@ -233,13 +232,6 @@
 (de many1p (P)
   (seqp P (manyp P)))
 
-(def 'natp
-  (bindp (many1p 'digitp) '((X) (resultp (format X)))))
-
-(def 'intp
-  (bindp (seqp (plusp (charp "-") (charp "+") 'nilp) (many1p 'digitp))
-         '((V) (resultp (format (pack V))))))
-
 (def 'spacep
   (satp '((X) (member X '(" " "\t" "\n" "\r")))))
 
@@ -264,9 +256,6 @@
 (de sepbyp (P Sep)
   (plusp (sepby1p P Sep) 'nilp))
 
-(def 'intsp
-  (betweenp (charp "[") (sepby1p 'intp (charp ",")) (charp "]")))
-
 (de ignorep (@P @W)
   (macro
     (bindp '@P '((V) (resultp '@W)))))
@@ -282,11 +271,11 @@
 
 # general parsing function
 (de parse (P String)
-  (let (*ParserInput (split (chop String) "\n" "\r")
-        Result ((droplp 'spacesp P) (newstate)))
-    (if (error? (car Result))
-      (mapc 'pp> Result)
-      (with (car Result) (: V)))))
+  (let (Inp (newinput String)
+        Res ((droplp 'spacesp P) (newstate Inp)))
+    (if (error? (car Res))
+      (mapc 'pp> Res)
+      (with (car Res) (: V)))))
 
 # general definitions
 
