@@ -11,4 +11,5 @@
 (println (parse 'URI "foo://example.com:8042/over/there?name=ferret#nose"))
 (println (parse 'URI "urn:example:animal:ferret:nose"))
 (println (parse 'URI "https://[2001:db8:85a3:8d3:1319:8a2e:370:7348]:443/"))
+(println (parse 'URI "http://[fe80::1ff:fe23:4567:890a%25eth0]/"))
 

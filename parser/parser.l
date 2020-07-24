@@ -141,7 +141,7 @@
         R)))))
 
 # bind two parser in sequence
-(de bind2p (@P1 @P2 @F)
+(de bind2p (@F @P1 @P2)
   (eval
     (fill
       '(bindp '@P1 '((@V1)
@@ -150,15 +150,162 @@
         '@V1))))
       '(@F @P1 @P2))))
 
+(de bind3p (@F @P1 @P2 @P3)
+  (eval
+    (fill
+      '(bindp '@P1 '((@V1)
+                     (bindp '@P2 (fill '((@V2)
+                                        (bindp '@P3 (fill '((V3)
+                                                          (resultp ('@F '@V1 '@V2 V3)))
+                                                          '@V2)))
+                                       '@V1))))
+      '(@F @P1 @P2 @P3))))
+
+# variant #2
+(de bind2p (@F @P1 @P2)
+  (fill '((State)
+    (let Vs NIL
+      ((bindp '@P1 '((V) (push 'Vs V)
+         (bindp '@P2 '((V) (push 'Vs V)
+           (resultp (apply '@F (flip Vs))))))) State)))))
+
+(de bind3p (@F @P1 @P2 @P3)
+  (fill '((State)
+    (let Vs NIL
+      ((bindp '@P1 '((V) (push 'Vs V)
+         (bindp '@P2 '((V) (push 'Vs V)
+           (bindp '@P3 '((V) (push 'Vs V)
+             (resultp (apply '@F (flip Vs))))))))) State)))))
+
+# variant #3
+(de bind-fun-mid (@P @F)
+  (fill '((V)
+          (push 'Vs V)
+          (bindp '@P '@F))))
+
+(de bind-fun-final (@F)
+  (fill '((V)
+          (push 'Vs V)
+          (resultp (apply '@F (flip Vs))))))
+
+(de bind2p (@F @P1 @P2)
+  (fill '((State)
+    (let (Vs NIL
+          Parser (bindp '@P1 (bind-fun-mid '@P2 (bind-fun-final '@F))))
+      (Parser State)))))
+
+(de bind3p (@F @P1 @P2 @P3)
+  (fill '((State)
+    (let (Vs NIL
+          Parser (bindp '@P1 (bind-fun-mid '@P2 (bind-fun-mid '@P3 (bind-fun-final '@F)))))
+      (Parser State)))))
+
+(de bind4p (@F @P1 @P2 @P3 @P4)
+  (fill '((State)
+    (let (Vs NIL
+          Parser (bindp '@P1 (bind-fun-mid '@P2 (bind-fun-mid '@P3 (bind-fun-mid '@P4 (bind-fun-final '@F))))))
+      (Parser State)))))
+
+(de bind5p (@F @P1 @P2 @P3 @P4 @P5)
+  (fill '((State)
+    (let (Vs NIL
+          Parser (bindp '@P1 (bind-fun-mid '@P2 (bind-fun-mid '@P3 (bind-fun-mid '@P4 (bind-fun-mid '@P5 (bind-fun-final '@F)))))))
+      (Parser State)))))
+
+(de bind6p (@F @P1 @P2 @P3 @P4 @P5 @P6)
+  (fill '((State)
+    (let (Vs NIL
+          Parser (bindp '@P1 (bind-fun-mid '@P2 (bind-fun-mid '@P3 (bind-fun-mid '@P4 (bind-fun-mid '@P5 (bind-fun-mid '@P6 (bind-fun-final '@F))))))))
+      (Parser State)))))
+
+(de bind7p (@F @P1 @P2 @P3 @P4 @P5 @P6)
+  (fill '((State)
+    (let (Vs NIL
+          Parser (bindp '@P1 (bind-fun-mid '@P2 (bind-fun-mid '@P3 (bind-fun-mid '@P4 (bind-fun-mid '@P5 (bind-fun-mid '@P6 (bind-fun-mid '@P7 (bind-fun-final '@F)))))))))
+      (Parser State)))))
+
+# variant #4
+(de generate-bind-parser @
+  (let (Res (bind-fun-final (next))
+        Plist (rest)
+        Len (length Plist))
+    (for (I . P) (flip Plist)
+      (if (= I Len)
+        (setq Res (bindp P Res))
+        (setq Res (bind-fun-mid P Res))))))
+
+(de bindnp @Args
+  (fill '((State)
+    (let (Vs NIL
+          Parser (generate-bind-parser ~'@Args))
+      (Parser State)))))
+
+(de bindnp @
+  (let @Args (rest)
+    (fill '((State)
+      (let (Vs NIL
+            Parser (generate-bind-parser ~'@Args))
+        (Parser State))))))
+
 # apply two parser in sequence and cons the result ('and' parser)
 (de seq2p (P1 P2)
   (if (and P1 P2)
-    (bind2p P1 P2 'cons)
+    (bind2p 'cons P1 P2)
     (or P1 P2))) # return the single parser
 
 # sequence of parsers
 (de seqp @
   (seq2p (next) (when (args) (pass 'seqp))))
+#(de seqp @
+#  (eval (cons 'bindnp 'cons (rest))))
+(de oldseqp @
+  (seq2p (next) (when (args) (pass 'oldseqp))))
+(de seqp @
+  (let Lst (rest)
+    (case (length Lst)
+      (0 NIL)
+      (1 (car Lst))
+      (2 (apply 'bind2p Lst 'cons))
+      (3 (apply 'bind3p Lst 'cons))
+      (4 (apply 'bind4p Lst 'cons))
+      (5 (apply 'bind5p Lst 'cons))
+      (6 (apply 'bind6p Lst 'cons))
+      (7 (apply 'bind7p Lst 'cons))
+      (T (apply 'oldseqp Lst)))))
+#(de seqp @Args
+#  (fill '((State)
+#    (let (Vs NIL
+#          Parser (generate-bind-parser 'cons ~'@Args))
+#      (Parser State)))))
+#(de seqp @
+#  (pass 'bindnp 'cons))
+
+# apply two parser in sequence and use list to join the result ('and' parser)
+# sometimes a list is better that cons
+(de seqlst2p (P1 P2)
+  (if (and P1 P2)
+    (bind2p 'list P1 P2)
+    (or P1 P2))) # return the single parser
+
+# sequence-list of parsers
+(de seqlstp @
+  (seqlst2p (next) (when (args) (pass 'seqlstp))))
+#(de seqlstp @
+#  (eval (cons 'bindnp 'list (rest))))
+(de oldseqlstp @
+  (seqlst2p (next) (when (args) (pass 'oldseqlstp))))
+(de seqlstp @
+  (let Lst (rest)
+    (case (length Lst)
+      (0 NIL)
+      (1 (car Lst))
+      (2 (apply 'bind2p Lst 'list))
+      (3 (apply 'bind3p Lst 'list))
+      (4 (apply 'bind4p Lst 'list))
+      (5 (apply 'bind5p Lst 'list))
+      (6 (apply 'bind6p Lst 'list))
+      (7 (apply 'bind7p Lst 'list))
+      (T (apply 'oldseqlstp Lst)))))
 
 # satisfy predicate
 (de satp (@Pred)
@@ -215,11 +362,11 @@
 
 # parse in sequence and drop the leftmost parsed value
 (de droplp (P1 P2)
-  (bind2p P1 P2 '((V1 V2) V2)))
+  (bind2p '((V1 V2) V2) P1 P2))
 
 # parse in sequence and drop the rightmost parsed value
 (de droprp (P1 P2)
-  (bind2p P1 P2 '((V1 V2) V1)))
+  (bind2p '((V1 V2) V1) P1 P2))
 
 # parse between left and right parsers and drop them
 (de betweenp (Pleft P Pright)
