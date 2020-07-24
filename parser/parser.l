@@ -94,8 +94,11 @@
 (de error? (Result)
   (when (isa '(+Error) Result) T))
 
-### Parser
+### Parser functions
 
+## Core parsers
+
+# return a value as parser
 (de resultp (@V)
   (fill '((State)
     (list (success '@V State)))))
@@ -104,10 +107,12 @@
 (def 'nilp
   (resultp NIL))
 
+# return an error with message
 (de zerop (@Msg)
   (fill '((State)
     (list (error '@Msg State)))))
 
+# add label in case of parser error
 (de labelp (@Label @P)
   (fill '((State)
     (let (R ('@P State)
@@ -116,12 +121,14 @@
         (mapcar '((X) (upd-exp> X @Label)) R)
         R)))))
 
+# get next char and return next state
 (def 'itemp
   (fill '((State)
     (if (car> State)
       (list (success (car> State) (next> State)))
       (list (error "No more input" State))))))
 
+# bind
 (de bindp (@P @F)
   (fill '((State)
     #(prin> State)
@@ -133,6 +140,7 @@
           (('@F V) S))
         R)))))
 
+# bind two parser in sequence
 (de bind2p (@P1 @P2 @F)
   (eval
     (fill
@@ -142,14 +150,17 @@
         '@V1))))
       '(@F @P1 @P2))))
 
+# apply two parser in sequence and cons the result ('and' parser)
 (de seq2p (P1 P2)
   (if (and P1 P2)
     (bind2p P1 P2 'cons)
     (or P1 P2))) # return the single parser
 
+# sequence of parsers
 (de seqp @
   (seq2p (next) (when (args) (pass 'seqp))))
 
+# satisfy predicate
 (de satp (@Pred)
   (macro
     (bindp 'itemp
@@ -159,31 +170,8 @@
                (('@Pred X) (resultp X))
                (T (zerop X)))))))
 
-(de mapp (@Fn @P)
-  (macro
-    (bindp '@P '((V) (resultp ('@Fn V))))))
-
-(de charp (@C)
-  (macro
-    (labelp (text "char '@1'" @C)
-      (satp '((X) (= @C X))))))
-
-(def 'digitp
-  (labelp "digit"
-    (satp '((X) (and (>= X "0") (<= X "9"))))))
-
-(def 'lowerp
-  (satp '((X) (and (>= X "a") (<= X "z")))))
-
-(def 'upperp
-  (satp '((X) (and (>= X "A") (<= X "Z")))))
-
-(def 'hexlowerp
-  (satp '((X) (and (>= X "a") (<= X "f")))))
-
-(def 'hexupperp
-  (satp '((X) (and (>= X "A") (<= X "F")))))
-
+# apply P1 and if it returns an error apply P2 to the same state ('or' parser)
+# shortcuts on the first successful parser
 (de plus2p (@P1 @P2)
   (if (and @P1 @P2)
     (fill '((State)
@@ -198,92 +186,148 @@
           R1))))
     (or @P1 @P2))) # return the single parser
 
+# choice of parsers
 (de plusp @
   (plus2p (next) (when (args) (pass 'plusp))))
 
-(def 'letterp
-  (plusp 'lowerp 'upperp))
+## Derived parsers
 
-(def 'alphanump
-  (labelp "alphanumeric"
-    (plusp 'letterp 'digitp)))
+# apply Fn to parser result
+(de mapp (@Fn @P)
+  (macro
+    (bindp '@P '((V) (resultp ('@Fn V))))))
 
-(def 'hexletterp
-  (plusp 'hexlowerp 'hexupperp))
-
-(def 'hexp
-  (labelp "hexadecimal"
-    (plusp 'hexletterp 'digitp)))
-
-(de stringp (String)
-  (mapp 'pack
-    (apply 'seqp (mapcar 'charp (chop String)))))
-
+# parse 0 or more times the parser
 (de manyp (@P)
   (fill '((State)
     ((plusp (seqp '@P (manyp '@P)) 'nilp) State))))
 
-(def 'wordp
-  (mapp 'pack (manyp 'letterp)))
-
-(def 'identp
-  (seqp 'lowerp (manyp 'alphanump)))
-
+# parse 1 or more times the parser
 (de many1p (P)
   (seqp P (manyp P)))
 
-(def 'spacep
-  (satp '((X) (member X '(" " "\t" "\n" "\r")))))
-
-(def 'spacesp
-  (manyp 'spacep))
-
-(def 'spaces1p
-  (many1p 'spacep))
-
-(de droplp (P1 P2)
-  (bind2p P1 P2 '((V1 V2) V2)))
-
-(de droprp (P1 P2)
-  (bind2p P1 P2 '((V1 V2) V1)))
-
-(de sepby1p (P Sep)
-  (seqp P (manyp (droplp Sep P))))
-
-(de betweenp (Open P Close)
-  (droplp Open (droprp P Close)))
-
-(de sepbyp (P Sep)
-  (plusp (sepby1p P Sep) 'nilp))
-
-(de ignorep (@P @W)
-  (macro
-    (bindp '@P '((V) (resultp '@W)))))
-
-(de optp (P)
-  (plusp P 'nilp))
-
+# parses P between X and Y times
 (de manyxyp (P X Y)
   (let (Seqs (append (maplist '((L) (cons 'seqp L)) (need Y P))
                      (list 'nilp))
         Cut (head (inc (- Y X)) Seqs))
     (eval (cons 'plusp Cut))))
 
-# general parsing function
-(de parse (P String)
+# parse in sequence and drop the leftmost parsed value
+(de droplp (P1 P2)
+  (bind2p P1 P2 '((V1 V2) V2)))
+
+# parse in sequence and drop the rightmost parsed value
+(de droprp (P1 P2)
+  (bind2p P1 P2 '((V1 V2) V1)))
+
+# parse between left and right parsers and drop them
+(de betweenp (Pleft P Pright)
+  (droplp Pleft (droprp P Pright)))
+
+# parses with separators (and drop them) 1 or more times
+(de sepby1p (P Sep)
+  (seqp P (manyp (droplp Sep P))))
+
+# parses with separators (and drop them) 0 or more times
+(de sepbyp (P Sep)
+  (plusp (sepby1p P Sep) 'nilp))
+
+# ignores parser P result and replaces it with W
+(de ignorep (@P @W)
+  (macro
+    (bindp '@P '((V) (resultp '@W)))))
+
+# optional parser
+(de optp (P)
+  (plusp P 'nilp))
+
+## Generic parsing function
+
+(de parse (P String DropLeadSpaces)
   (let (Inp (newinput String)
-        Res ((droplp 'spacesp P) (newstate Inp)))
+        Res ((if DropLeadSpaces
+               (droplp 'spacesp P)
+               P)
+             (newstate Inp)))
     (if (error? (car Res))
       (mapc 'pp> Res)
       (with (car Res) (: V)))))
 
-# general definitions
+## common parser definitions
+
+# character
+(de charp (@C)
+  (macro
+    (labelp (text "char '@1'" @C)
+      (satp '((X) (= @C X))))))
+
+# string
+(de stringp (String)
+  (mapp 'pack
+    (apply 'seqp (mapcar 'charp (chop String)))))
+
+# digit
+(def 'digitp
+  (labelp "digit"
+    (satp '((X) (and (>= X "0") (<= X "9"))))))
+
+# lowercase letter
+(def 'lowerp
+  (satp '((X) (and (>= X "a") (<= X "z")))))
+
+# uppercase letter
+(def 'upperp
+  (satp '((X) (and (>= X "A") (<= X "Z")))))
+
+# hex lowercase letter
+(def 'hexlowerp
+  (satp '((X) (and (>= X "a") (<= X "f")))))
+
+# hex uppercase letter
+(def 'hexupperp
+  (satp '((X) (and (>= X "A") (<= X "F")))))
+
+# any 'space'
+(def 'spacep
+  (satp '((X) (member X '(" " "\t" "\n" "\r")))))
+
+# 0 or more 'spaces'
+(def 'spacesp
+  (manyp 'spacep))
+
+# 1 or more 'spaces'
+(def 'spaces1p
+  (many1p 'spacep))
+
+# letter
+(def 'letterp
+  (plusp 'lowerp 'upperp))
+
+# alphanumeric
+(def 'alphanump
+  (labelp "alphanumeric"
+    (plusp 'letterp 'digitp)))
+
+# hex letter
+(def 'hexletterp
+  (plusp 'hexlowerp 'hexupperp))
+
+# hexadecimal
+(def 'hexp
+  (labelp "hexadecimal"
+    (plusp 'hexletterp 'digitp)))
+
+## Aliases
 
 (def 'digit
   'digitp)
 
 (def 'alpha
   'letterp)
+
+(def 'alphanum
+  'alphanump)
 
 (def 'hexdig
   'hexp)
@@ -292,10 +336,10 @@
   (charp " "))
 
 (def 'htab
-   (charp "\t"))
+  (charp "\t"))
 
- (def 'cr
-   (charp "\r"))
+(def 'cr
+  (charp "\r"))
 
- (def 'crlf
-   (charp "\n"))
+(def 'crlf
+  (charp "\n"))
