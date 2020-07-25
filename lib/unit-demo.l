@@ -1,6 +1,14 @@
 ### Unit test library demo
 (load "unit.l")
-(symbols 'pico 'unit)
+#(symbols 'pico 'unit)
+
+(deftest test-- ()
+  (check=
+    (4 (- 6 2))
+    ((+ 1 1) (- 6 2))
+    ))
+
+#(defsuite test-arithmetic)
 
 (deftest test-+ ()
   (check=
@@ -15,10 +23,7 @@
     ((* 3 5) 15)
     ))
 
-(deftest test-arithmetic ()
-  (combine-results
-    (test-+)
-    (test-*)))
+#(defsuite other-tests)
 
 (deftest test-/ ()
   (check=
@@ -26,8 +31,6 @@
     ((+ 1 1) (/ 6 2))
     ))
 
-(test-arithmetic)
-(test-/)
-
-(bye)
+#(-run-suites)
+#(bye)
 
