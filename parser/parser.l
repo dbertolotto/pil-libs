@@ -5,9 +5,6 @@
       (NIL L)
       (link Sep))))
 
-(de uni (Str)
-  (char (hex Str)))
-
 ### State
 
 (class +Input)
@@ -238,14 +235,21 @@
   (fill '((State)
     (let (Vs NIL
           Parser (generate-bind-parser ~'@Args))
-      (Parser State)))))
+      (Parser State)
+      (show State)))))
 
 (de bindnp @
-  (let @Args (rest)
+  (let @P (pass 'generate-bind-parser)
     (fill '((State)
-      (let (Vs NIL
-            Parser (generate-bind-parser ~'@Args))
-        (Parser State))))))
+      (let Vs NIL
+        ('@P State))))))
+
+#(de bindnp @
+#  (let @Args (rest)
+#    (fill '((State)
+#      (let (Vs NIL
+#            Parser (generate-bind-parser ~'@Args))
+#        (Parser State))))))
 
 # apply two parser in sequence and cons the result ('and' parser)
 (de seq2p (P1 P2)
@@ -277,8 +281,12 @@
 #    (let (Vs NIL
 #          Parser (generate-bind-parser 'cons ~'@Args))
 #      (Parser State)))))
+(de seqp @
+  (pass 'bindnp 'cons))
 #(de seqp @
-#  (pass 'bindnp 'cons))
+#  (apply 'bindnp (rest) 'cons))
+#(de seqp @Args
+#  (macro (bindnp 'cons ~'@Args)))
 
 # apply two parser in sequence and use list to join the result ('and' parser)
 # sometimes a list is better that cons
@@ -306,6 +314,8 @@
       (6 (apply 'bind6p Lst 'list))
       (7 (apply 'bind7p Lst 'list))
       (T (apply 'oldseqlstp Lst)))))
+(de seqlstp @
+  (pass 'bindnp 'list))
 
 # satisfy predicate
 (de satp (@Pred)
@@ -414,26 +424,36 @@
   (mapp 'pack
     (apply 'seqp (mapcar 'charp (chop String)))))
 
+# char range parser
+(de crangep (@Low @Upp)
+  (macro
+    (satp '((X) (and (>= X @Low) (<= X @Upp))))))
+
+# unicode range parser
+(de urangep (@Low @Upp)
+  (macro
+    (satp '((X) (and (>= X (char (hex @Low))) (<= X (char (hex @Upp))))))))
+
 # digit
 (def 'digitp
   (labelp "digit"
-    (satp '((X) (and (>= X "0") (<= X "9"))))))
+    (crangep "0" "9")))
 
 # lowercase letter
 (def 'lowerp
-  (satp '((X) (and (>= X "a") (<= X "z")))))
+  (crangep "a" "z"))
 
 # uppercase letter
 (def 'upperp
-  (satp '((X) (and (>= X "A") (<= X "Z")))))
+  (crangep "A" "Z"))
 
 # hex lowercase letter
 (def 'hexlowerp
-  (satp '((X) (and (>= X "a") (<= X "f")))))
+  (crangep "a" "f"))
 
 # hex uppercase letter
 (def 'hexupperp
-  (satp '((X) (and (>= X "A") (<= X "F")))))
+  (crangep "A" "F"))
 
 # any 'space'
 (def 'spacep

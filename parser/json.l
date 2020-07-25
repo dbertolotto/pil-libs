@@ -22,8 +22,8 @@
     '("\\\"" . "\"")
     '("\\\\" . "\\")
     '("\\/" . "/")
-    '("\\b" . `(uni "232B"))
-    '("\\f" . `(uni "240A"))
+    '("\\b" . `(char (hex "232B")))
+    '("\\f" . `(char (hex "240A")))
     '("\\n" . "\n")
     '("\\r" . "\r")
     '("\\t" . "\t")
@@ -33,10 +33,11 @@
   (apply 'plusp (mapcar '((X) (ignorep (stringp (car X)) (cdr X))) *Jesc)))
 
 (def 'juni
-  (let (bl (charp "\\")
+  (let (uni '((X) (char (hex (pack X))))
+        bl (charp "\\")
         uc (charp "u")
         hx (seqp hexp hexp hexp hexp)
-        code (mapp 'uni (mapp 'pack hx)))
+        code (mapp 'uni hx))
     (droplp bl (droplp uc code))))
 
 (def 'jchar
@@ -66,7 +67,7 @@
       (op Num ExpVal))))
 
 (def 'jdigit19
-  (satp '((X) (and (>= X "1") (<= X "9")))))
+  (crangep "1" "9"))
 
 (def 'jsign
   (plusp (charp "+") (charp "-") 'nilp))

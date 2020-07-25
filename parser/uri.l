@@ -14,7 +14,10 @@
   (seqlstp (droprp 'scheme (charp ":")) 'hier-part 'query-opt 'fragment-opt))
 
 (def 'hier-part
-  (plusp (seqlstp (droplp (stringp "//") 'authority) 'path-abempty) 'path-absolute 'path-rootless 'path-empty))
+  (plusp (seqlstp (droplp (stringp "//") 'authority) 'path-abempty)
+         'path-absolute
+         'path-rootless
+         'path-empty))
 
 (def 'URI-reference
   (plusp 'URI 'relative-ref))
@@ -135,10 +138,10 @@
     (mapp 'format
       (mapp 'pack
         (plusp # order is relevant here!
-          (seqp (stringp "25") (satp '((X) (and (>= X `(uni "30")) (<= X `(uni "35")))))) # 250-255
-          (seqp (charp "2") (satp '((X) (and (>= X `(uni "30")) (<= X `(uni "34"))))) 'digit) # 200-249
+          (seqp (stringp "25") (crangep "0" "5")) # 250-255
+          (seqp (charp "2") (crangep "0" "4") 'digit) # 200-249
           (seqp (charp "1") 'digit 'digit) # 100-199
-          (seqp (satp '((X) (and (>= X `(uni "31")) (<= X `(uni "39"))))) 'digit) # 10-99
+          (seqp (crangep "1" "9") 'digit) # 10-99
           'digit # 0-9
           )))))
 
