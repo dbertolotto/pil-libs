@@ -9,7 +9,7 @@
 
 (class +Input)
 (dm T (String)
-  (=: I (split (chop String) "\n" "\r")))   # Input
+  (=: I (split (chop String) "\n")))   # Input
 (dm inp> ()
   (: I))
 
@@ -35,7 +35,7 @@
 (dm next> ()
   (let (Car (car> This)
         (R . C) (: P)
-        Pos (if (or (= Car "\n") (= Car "\r"))
+        Pos (if (or (= Car "\n"))
               (cons (inc R) 1)
               (cons R (inc C))))
     (newstate (: I) Pos)))
@@ -282,6 +282,11 @@
   (macro
     (satp '((X) (and (>= X @Low) (<= X @Upp))))))
 
+# ascii range parser
+(de arangep (@Low @Upp)
+  (macro
+    (satp '((X) (and (>= X (char @Low)) (<= X (char @Upp)))))))
+
 # unicode range parser
 (de urangep (@Low @Upp)
   (macro
@@ -363,8 +368,17 @@
 (def 'htab
   (charp "\t"))
 
+(def 'wsp
+  (plusp 'sp 'htab))
+
 (def 'cr
   (charp "\r"))
 
-(def 'crlf
+(def 'lf
   (charp "\n"))
+
+(def 'crlf
+  (seqp 'cr 'lf))
+
+(def 'octet
+  (urangep "00" "FF"))

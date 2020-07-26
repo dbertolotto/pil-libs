@@ -14,10 +14,11 @@
   (seqlstp (droprp 'scheme (charp ":")) 'hier-part 'query-opt 'fragment-opt))
 
 (def 'hier-part
+  (mapp '((X) (cons 'hier X))
   (plusp (seqlstp (droplp (stringp "//") 'authority) 'path-abempty)
          'path-absolute
          'path-rootless
-         'path-empty))
+         'path-empty)))
 
 (def 'URI-reference
   (plusp 'URI 'relative-ref))
@@ -29,7 +30,11 @@
   (seqlstp 'relative-part 'query-opt 'fragment-opt))
 
 (def 'relative-part
-  (plusp (seqlstp (droplp (stringp "//") 'authority) 'path-abempty) 'path-absolute 'path-noscheme 'path-empty))
+  (mapp '((X) (cons 'hier X))
+  (plusp (seqlstp (droplp (stringp "//") 'authority) 'path-abempty)
+         'path-absolute
+         'path-noscheme
+         'path-empty)))
 
 (def 'scheme
   (mapp '((X) (cons 'scheme X))
@@ -40,38 +45,38 @@
   (mapp '((X) (cons 'authority X))
     (seqlstp (mapp '((X) (cons 'userinfo X))
                    (optp (droprp 'userinfo (charp "@"))))
-             'uri-host
+             (mapp '((X) (cons 'host X))
+                   'uri-host)
              (mapp '((X) (cons 'port X))
                    (optp (droplp (charp ":") 'uri-port))))))
 
 (def 'userinfo
-    (mapp 'pack
-      (manyp (plusp 'unreserved 'pct-encoded 'sub-delims (charp ":")))))
+  (mapp 'pack
+    (manyp (plusp 'unreserved 'pct-encoded 'sub-delims (charp ":")))))
 
 (def 'uri-host
-  (mapp '((X) (cons 'host X))
-    (plusp 'IP-literal 'IPv4address 'reg-name)))
+  (plusp 'IP-literal 'IPv4address 'reg-name))
 
 (def 'uri-port
-    (mapp 'format
-      (mapp 'pack
-        (manyp 'digit))))
+  (mapp 'format
+    (mapp 'pack
+      (manyp 'digit))))
 
 (def 'IP-literal # RFC6874
   (betweenp (charp "[") (plusp 'IPv6addrz 'IPvFuture) (charp "]")))
 
 (def 'IPv6addrz # RFC6874
-  (mapp '((X) (list 'ipv6 X))
-    (seqp 'IPv6address
-          (mapp '((X) (cons 'zone X))
-            (optp (droplp (stringp "%25") 'zone-id))))))
+  (seqlstp (mapp '((X) (cons 'ipv6 X))
+             'IPv6address)
+           (mapp '((X) (cons 'zone X))
+             (optp (droplp (stringp "%25") 'zone-id)))))
 
 (def 'zone-id # RFC6874
-    (mapp 'pack
-      (many1p (plusp 'unreserved 'pct-encoded))))
+  (mapp 'pack
+    (many1p (plusp 'unreserved 'pct-encoded))))
 
 (def 'IPvFuture
-  (mapp '((X) (list 'ipvf X))
+  (mapp '((X) (cons 'ipvf X))
     (mapp 'pack
       (seqp (charp "v") (many1p 'hexdig) (charp ".") (many1p (plusp 'unreserved 'sub-delims (charp ":")))))))
 
@@ -129,7 +134,7 @@
 
 (def 'IPv4address
   (let dot-dec-octet (droplp (charp ".") 'dec-octet)
-    (mapp '((X) (list 'ipv4 X))
+    (mapp '((X) (cons 'ipv4 X))
       (mapp '((X) (fish 'atom X))
         (seqp 'dec-octet dot-dec-octet dot-dec-octet dot-dec-octet)))))
 
@@ -146,7 +151,7 @@
           )))))
 
 (def 'reg-name
-  (mapp '((X) (list 'name X))
+  (mapp '((X) (cons 'name X))
     (mapp 'pack
       (manyp (plusp 'unreserved 'pct-encoded 'sub-delims)))))
 
@@ -154,23 +159,23 @@
   (plusp 'path-abempty 'path-absolute 'path-noscheme 'path-rootless 'path-empty))
 
 (def 'path-abempty # begins with "/" or is empty
-  (mapp '((X) (list 'path X))
+  (mapp '((X) (cons 'path X))
     (manyp (droplp (charp "/") 'segment))))
 
 (def 'path-absolute # begins with "/" but not "//"
-  (mapp '((X) (list 'path X))
+  (mapp '((X) (cons 'path X))
     (seqp (charp "/") (optp (seqp 'segment-nz (manyp (droplp (charp "/") 'segment)))))))
 
 (def 'path-noscheme # begins with a non-colon segment
-  (mapp '((X) (list 'path X))
+  (mapp '((X) (cons 'path X))
     (seqp 'segment-nz-nc (manyp (droplp (charp "/") 'segment)))))
 
 (def 'path-rootless # begins with a segment
-  (mapp '((X) (list 'path X))
+  (mapp '((X) (cons 'path X))
     (seqp 'segment-nz (manyp (droplp (charp "/") 'segment)))))
 
 (def 'path-empty # zero characters
-  (mapp '((X) (list 'path X))
+  (mapp '((X) (cons 'path X))
     'nilp))
 
 (def 'segment
@@ -206,8 +211,8 @@
   (plusp gen-delims 'sub-delims))
 
 (def 'gen-delims
-  (satp '((X) (member X '`(chop ":/?#[]@")))))
+  (memberp (chop ":/?#[]@")))
 
 (def 'sub-delims
-  (satp '((X) (member X '`(chop "!$&'()*+,;=")))))
+  (memberp (chop "!$&'()*+,;=")))
 
