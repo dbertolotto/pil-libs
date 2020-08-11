@@ -1,4 +1,4 @@
-(load "lib/string.l" "lib/util.l" "lib/classutil.l")
+(load "lib/string.l" "lib/util.l" "lib/classutil.l" "lib/server.l")
 (symbols '(pico string util classutil))
 
 # Unreserved URL characters
@@ -103,23 +103,12 @@
   (let (N (if (next) (arg) "\n"))
     (mapcar '((P) (pack (car P) ": " (cdr P) N)) Lst)))
 
-(de server (P)
-  (task (port P)
-    (when (accept @)
-      (task @
-            Sock @
-            (in Sock
-              (out Sock (prinl (*handler (*reader))))
-              (prinl "Close task & sock " Sock)
-              (task Sock)
-              (close Sock))))))
-
 ### Other stuff
 
 (de http-handler-demo (Request)
   (let (Response-params '((content-type . "text/html; charset=utf-8"))
         Response-body (request-handler (method> Request) (url> Request) (params> Request) (body> Request)))
-    (build> (new '(+HttpResponse) (version> Request) 200 'OK Response-params Response-body))))
+    (prinl (build> (new '(+HttpResponse) (version> Request) 200 'OK Response-params Response-body)))))
 
 (de request-handler (Method Url Params Body)
   (if (= Url "/greeting")
@@ -134,10 +123,10 @@
 (de http-handler-echo (Request)
   (let (Response-params '((content-type . "text/html; charset=utf-8"))
         Response-body (pack "<html>" (build> Request "<br>") "</html>"))
-    (build> (new '(+HttpResponse) (version> Request) 200 'OK Response-params Response-body))))
+    (prinl (build> (new '(+HttpResponse) (version> Request) 200 'OK Response-params Response-body)))))
 
 ### start server
 
-(setq *handler http-handler-echo)
-(setq *reader http-reader)
-(server 8080)
+(de http-echo-server (Port)
+  (server Port 'http-reader 'http-handler-echo))
+(http-echo-server 8080)
