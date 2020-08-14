@@ -1,4 +1,7 @@
-# https://www.w3schools.com/tags/default.asp
+# html5 library
+# (c) 2020 Davide Bertolotto
+
+# List of tags. See https://www.w3schools.com/tags/default.asp
 (setq *HtmlTags (list
 "a" # Defines a hyperlink
 "abbr" #  Defines an abbreviation or an acronym
@@ -112,6 +115,8 @@
 "wbr" # Defines a possible line-break
 ))
 
+### utility functions
+
 (de esc-char (C)
   (case C
     ("&" "&amp;")
@@ -148,14 +153,17 @@
       ">" Body
       (when Body (pack "</" Name ">")))))
 
-# document type
+### tags
+
+# document type (special tag)
 (de :doctype ()
   (html-tag "!DOCTYPE" (attrs "html")))
 
-# comment
+# comment (special tag)
 (de :comment (Str)
   (pack "<!-- " Str " -->"))
 
+# generate all tag functions in the form :tag
 (de define-tag (@Tag)
   (let @TagFn (any (pack ":" @Tag))
     (macro (de @TagFn @ (pass 'html-tag @Tag)))))
@@ -165,45 +173,9 @@
 
 (generate-tag-fns)
 
-(de test1 ()
-  (println (attrs "a1" "v1" "a2" NIL "a3"))
-  (mapc 'prinl (list
-    (html-attr (cons "attr" "val"))
-    (html-tag "mytag" NIL "some body")
-    (html-tag "mytag" (attrs "attr1" NIL) "some body")
-    (html-tag "mytag" (attrs "attr1" "val1") "some body")
-    (html-tag "mytag" (attrs "attr1" "val1" "attr2" "val2") "some body")
-    )))
+### convenience functions
 
-(de test2 ()
-  (mapc 'prinl (list
-    (:doctype)
-    )))
-
-(test1)
-(test2)
-
-#(load "@lib/http.l" "@lib/xhtml.l")
-#
-(de webpage ()
-  (pack
-    (:doctype)
-    (:html
-      (:head
-        (:meta (attrs "charset" "UTF-8"))
-        (:title "Hello title"))
-      (:body
-        (:h1 "Heading")
-        (:p "hello html")))))
-
-(prinl (webpage))
-##(server 8080 "!webpage")
-#(prinl
-#  (html 0 "Hello Web" "@lib.css" NIL
-#    (:h1> NIL "Hello, web")
-#    (:p> NIL "This is my first PicoLisp website")))
-
-(de html5 (Title Css . Body)
+(de html5 (Title Css Body)
   (pack
     (:doctype)
     (:html

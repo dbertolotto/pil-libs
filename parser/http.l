@@ -1,4 +1,4 @@
-(load "parser.l" "uri.l")
+(load+ "#parser/parser.l" "#parser/uri.l")
 
 (def 'bws
   'ows)

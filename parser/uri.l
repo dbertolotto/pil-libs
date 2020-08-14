@@ -1,4 +1,4 @@
-(load "parser.l")
+(load+ "#parser/parser.l")
 
 # URI RFC3986
 

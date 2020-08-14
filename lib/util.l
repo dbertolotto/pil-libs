@@ -6,7 +6,7 @@
 
 (local) nnil?
 (de nnil? (S)
-  (not (nil? S)))
+  (<> S NIL))
 
 (local) odd
 (de odd (Lst)

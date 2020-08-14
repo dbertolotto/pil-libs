@@ -1,6 +1,18 @@
 (load "http.l")
 
 (println (parse start-line "GET /hello.txt HTTP/1.1\r"))
+(println (parse request-line "GET /hello.txt HTTP/1.1\r"))
+# origin form
+(println (parse start-line "GET /where?q=now HTTP/1.1\r"))
+(println (parse start-line "GET /where?q=now#bla HTTP/1.1\r"))
+(println (parse start-line "GET /where#bla HTTP/1.1\r"))
+# absolute form
+(println (parse start-line "GET http://www.example.org/pub/WWW/TheProject.html HTTP/1.1\r"))
+# authority form
+(println (parse start-line "CONNECT www.example.com:80 HTTP/1.1\r"))
+# asterisk form
+(println (parse start-line "OPTIONS * HTTP/1.1\r"))
+
 
 (println (parse http-message
 "GET /hello.txt HTTP/1.1\r
