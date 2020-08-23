@@ -18,24 +18,20 @@
 (test1)
 (test2)
 
-#(load "@lib/http.l" "@lib/xhtml.l")
-#
 (de webpage ()
   (pack
     (:doctype)
     (:html
       (:head
         (:meta (attrs "charset" "UTF-8"))
+        (:meta (attrs "name" "viewport"
+                      "content" "width=device-width, initial-scale=1.0"))
         (:title "Hello title"))
       (:body
         (:h1 "Heading")
         (:p "hello html")))))
 
-(prinl (webpage))
-##(server 8080 "!webpage")
-#(prinl
-#  (html 0 "Hello Web" "@lib.css" NIL
-#    (:h1> NIL "Hello, web")
-#    (:p> NIL "This is my first PicoLisp website")))
-
+(out "web.html" (prinl (webpage)))
+#(load "@lib/http.l" "@lib/xhtml.l")
+#(server 8080 "!webpage")
 

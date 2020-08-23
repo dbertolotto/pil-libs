@@ -1,5 +1,5 @@
 ### Unit test library
-#(symbols 'unit 'pico)
+(symbols 'unit 'pico)
 
 (local) *Tests *TestName *TestColor *TestShowSuccess *TestPassMark *TestFailMark
 

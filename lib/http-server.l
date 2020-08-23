@@ -1,8 +1,5 @@
 (load+ "#lib/string.l" "#lib/util.l" "#lib/classutil.l" "#lib/server.l" "#parser/http.l" "#lib/html5.l" "#lib/http.l")
-(symbols '(pico server string util classutil))
-
-# Unreserved URL characters
-(setq *Unreserved "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~")
+(symbols '(pico server http string util classutil))
 
 (setq
   *MaxReqLineLength (* 8 1024)
@@ -11,9 +8,6 @@
 
 (de decode-char (C1 C2)
   (char (hex (pack C1 C2))))
-
-(de encode-char (C)
-  (hex (char C)))
 
 (de decode-param (S)
   (pack
@@ -26,14 +20,6 @@
               ("+" " ")
               (T C))))))))
 
-(de url-encode (S)
-  (let (Unres (chop *Unreserved))
-    (pack
-      (mapcar '((C) (if (member C Unres)
-                      C
-                      (pack "%" (encode-char C))))
-              (chop S)))))
-
 (de parse-param (S)
   (let (Pair (splits S "="))
     (cons (intern (lowc (car Pair)))
@@ -42,29 +28,8 @@
 (de parse-params (S)
   (mapcar 'parse-param (splits S "&")))
 
-(de get-start-line ()
-  (let (Start-Line (filter nnil? (splits (line) " "))
-        Url (splits (cadr Start-Line) "?"))
-    (list (intern (uppc (car Start-Line)))
-          (lowc (car Url))
-          (cadr Url)
-          (caddr Start-Line))))
-
-(de get-headers ()
-  (make
-    (while (line T)
-      (let (L (mapcar 'trims (splits @ ":")))
-        (when L
-          (link (cons (intern (lowc (car L))) (cadr L))))))))
-
 (de get-content-length (Headers)
   (format (cdr (assoc 'content-length Headers))))
-
-(de get-body (Headers)
-  (let (Length (get-content-length Headers))
-    (when Length
-      #(pack (make (do Length (link (char))))))))
-      (pipe (echo Length) (till NIL T)))))
 
 (de read-body (Headers)
   (let (Length (get-content-length Headers))
@@ -72,16 +37,6 @@
       (throw 'HttpBodyLengthException))
     (when Length
       (pipe (echo Length) (till)))))
-#    (pack
-#      (make
-#        (loop
-#          (T (= Length Cnt) (! line))
-#          (setq Cnt (inc Cnt))
-#          (T (> Cnt Length) (throw 'HttpContentLengthException))
-#          (T (> Cnt *MaxBodyLength) (throw 'HttpBodyLengthException))
-#          (out NIL (prinl (peek)))
-#          (link (char))
-#          (out NIL (prinl (made)))))))))
 
 (de read-headers ()
   (let Cnt 0
@@ -130,7 +85,6 @@
         Version (caddr Start-line)
         Headers (parse-headers (read-headers))
         Body (read-body Headers))
-        (out NIL (println Body))
     (http-req Method Uri Version Headers Body))))
 
 (de http-headers (Lst . @)
@@ -141,9 +95,9 @@
 
 (de http-handler-demo (Request)
   (let (Response-params '((content-type . "text/html; charset=utf-8"))
-        Uri (get Request 'Uri)
-        Response-body (request-handler (get Request 'Method) (get Uri 'Path) (params> Uri) (get Request Body)))
-    (prin (build> (http-res (get Request 'Version) 200 'OK Response-params Response-body)))))
+        Uri (get Request 'U)
+        Response-body (request-handler (get Request 'M) (get Uri 'P) (params> Uri) (get Request 'B)))
+    (prin (build> (http-res (get Request 'V) 200 'OK Response-params Response-body)))))
 
 (de request-handler (Method Path Params Body)
   (if (= Path "/greeting")
@@ -159,10 +113,13 @@
   (let (Response-params '((content-type . "text/html; charset=utf-8"))
         Built-req (let *HttpNewLine (:br) (build> Request))
         Response-body (html5 "Echoing request" NIL Built-req))
-    (prin (build> (http-res (get Request 'Version) 200 'OK Response-params Response-body)))))
+    (prin (build> (http-res (get Request 'V) 200 'OK Response-params Response-body)))))
 
 ### start server
 
+(de http-server (Port handler)
+  (generic-server Port 'http-reader handler))
+
 (de http-echo-server (Port)
-  (generic-server Port 'http-reader 'http-handler-echo))
+  (http-server Port 'http-handler-echo))
 (http-echo-server 8080)

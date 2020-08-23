@@ -1,56 +1,59 @@
+(symbols 'http 'pico)
+
+(local) *HttpNeeLine
 (setq *HttpNewLine "\r\n")
 
+(local) +HttpUri
 (class +HttpUri)
-# Path, Query, Fragment
+(dm T (Path Query Fragment)
+  (=: P Path)
+  (=: Q Query)
+  (=: F Fragment))
 (dm params> ()
-  (parse-params (: Query)))
+  (parse-params (: Q)))
 (dm build> ()
-  (pack (: Path) (when (: Query) (pack "?" @)) (when (: Frag) (pack "#" @))))
+  (pack (: P) (when (: Q) (pack "?" @)) (when (: F) (pack "#" @))))
 
-(de http-uri (Path Query Frag)
-  (let Uri (new '(+HttpUri))
-    (put Uri 'Path Path)
-    (put Uri 'Query Query)
-    (put Uri 'Frag Frag)
-    Uri))
+(de http-uri @
+  (pass new '(+HttpUri)))
 
+(local) +HttReq
 (class +HttpReq)
-# Method, Uri, Version, Headers, Body
+(dm T (Method Uri Version Headers Body)
+  (=: M Method)
+  (=: U Uri)
+  (=: V Version)
+  (=: H Headers)
+  (=: B Body))
 (dm build> ()
   (pack
-    (: Method) " " (build> (: Uri)) " " (: Version) *HttpNewLine
-    (build-http-headers (: Headers))
-    (content-length (: Body))
+    (: M) " " (build> (: U)) " " (: V) *HttpNewLine
+    (build-http-headers (: H))
+    (content-length (: B))
     *HttpNewLine
-    (: Body)))
+    (: B)))
 
-(de http-req (Meth Uri Ver Head Body)
-  (let Req (new '(+HttpReq))
-    (put Req 'Method Meth)
-    (put Req 'Uri Uri)
-    (put Req 'Version Ver)
-    (put Req 'Headers Head)
-    (put Req 'Body Body)
-    Req))
+(de http-req @
+  (pass new '(+HttpReq)))
 
+(local) +HttpRes
 (class +HttpRes)
-# Version, Status, Message, Headers, Body
+(dm T (Version Status Message Headers Body)
+  (=: V Version)
+  (=: S Status)
+  (=: M Message)
+  (=: H Headers)
+  (=: B Body))
 (dm build> ()
   (pack
-    (: Version) " " (: Status) " " (: Message) *HttpNewLine
-    (build-http-headers (: Headers))
-    (content-length (: Body))
+    (: V) " " (: S) " " (: M) *HttpNewLine
+    (build-http-headers (: H))
+    (content-length (: B))
     *HttpNewLine
-    (: Body)))
+    (: B)))
 
-(de http-res (Ver Stat Msg Head Body)
-  (let Res (new '(+HttpRes))
-    (put Res 'Version Ver)
-    (put Res 'Status Stat)
-    (put Res 'Message Msg)
-    (put Res 'Headers Head)
-    (put Res 'Body Body)
-    Res))
+(de http-res @
+  (pass new '(+HttpRes)))
 
 (de build-http-headers (Headers)
   (mapcar '((H) (pack (car H) ": " (cdr H) *HttpNewLine)) Headers))
@@ -61,9 +64,6 @@
 
 (de decode-char (C1 C2)
   (char (hex (pack C1 C2))))
-
-(de encode-char (C)
-  (hex (char C)))
 
 (de decode-param (S)
   (pack
@@ -76,14 +76,6 @@
               ("+" " ")
               (T C))))))))
 
-(de url-encode (S)
-  (let (Unres (chop *Unreserved))
-    (pack
-      (mapcar '((C) (if (member C Unres)
-                      C
-                      (pack "%" (encode-char C))))
-              (chop S)))))
-
 (de parse-param (S)
   (let (Pair (splits S "="))
     (cons (intern (lowc (car Pair)))
@@ -94,6 +86,3 @@
 
 (de splits (Str Sep)
   (mapcar 'pack (split (chop Str) Sep)))
-
-(de nnil? (X)
-  (<> X NIL))

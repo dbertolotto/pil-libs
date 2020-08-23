@@ -1,54 +1,59 @@
-#(symbols 'server 'pico)
+(symbols 'server 'pico)
 
+(local) *Timeout
 (setq
-  *Timeout 30000)
+  *Timeout 5000) # ms
 
-#(local) server
-(de server (Port @Reader @Handler)
+(local) server-task
+(de server-task (Port @reader @handler)
   (macro
     (task (port Port)
       (when (accept @)
         (task @
           Sock @
-          (in Sock
-            (out Sock
-              (@Handler (@Reader)))
-              (task Sock) # close task
-              (close Sock) # close sock
-              ))))))
+          (out Sock
+            (@handler
+              (in Sock
+                (@reader))))
+          (task Sock) # close task
+          (close Sock)))))) # close sock
 
-(de server2 (Port Reader Handler)
+(local) server-fork
+(de server-fork (Port reader handler)
   (let (Pfd (port Port)
-        Sock NIL)
+        Sock NIL
+        CPid NIL)
     (loop
       (setq Sock (listen Pfd))
-      (NIL (fork) (child-handler Pfd Sock Reader Handler))
+      (setq CPid (fork))
+      (NIL CPid (server-child-handler Pfd Sock reader handler))
+      (install-timeout CPid)
       (close Sock))))
 
-(de child-handler (Pfd Sock Reader Handler)
+(de install-timeout (CPid)
+  (when CPid
+    (let TaskNum (- *Timeout CPid)
+      (task TaskNum *Timeout
+        P CPid
+        T *Timeout
+        N TaskNum
+        (when (member P (kids))
+          (kill P)
+          (prinl (text "Child process @1 timed out after @2 s" P (/ T 1000))))
+        (task N)))))
+
+(local) server-child-handler
+(de server-child-handler (Pfd Sock reader handler)
+  (prinl (text "Forked pid @1 from parent @2" *Pid *PPid))
   (close Pfd)
-  (timeout *Timeout)
-  (in Sock
-    (out Sock
-      (Handler (Reader)))
-    (close Sock)))
+  (out Sock
+    (handler
+      (in Sock
+        (reader))))
+  (close Sock)
+  (bye))
 
-(de echo-handler (ReaderOut)
-  (prinl "Server echo: " ReaderOut))
+(local) generic-server
+#(def 'generic-server server-task)
+(def 'generic-server server-fork)
 
-(de echo-reader ()
-  (line T))
-
-(de client (Host Port)
-  (prinl "Echo Client - press :q to quit")
-  (while T
-  (let? Sock (connect Host Port)
-    (out NIL
-      (prin "Client says: "))
-    (let Input (in NIL (read " :"))
-      (when (= Input ":q") (bye))
-      (out Sock (prinl Input)))
-    (in Sock (until (eof) (prinl (line T)))))))
-
-(de echo-server (Port)
-  (server2 Port 'echo-reader 'echo-handler))

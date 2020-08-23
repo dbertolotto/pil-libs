@@ -1,6 +1,6 @@
 ### Unit test library demo
 (load "unit.l")
-#(symbols 'pico 'unit)
+(symbols 'pico 'unit)
 
 (deftest test-- ()
   (check=
