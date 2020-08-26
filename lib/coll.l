@@ -42,7 +42,7 @@
 
 (seed (time))
 
-(setq Ns (5 10 20 50 100 200 500 1000 2000 5000 10000))
+(setq Ns (5 10 20 50 100 200 500 1000 2000 5000 10000 20000 50000 100000))
 (for N Ns
 
 (setq A (new '(+AList)))
@@ -54,20 +54,24 @@
 (while (< (length InsKeys) N)
   (push1 'InsKeys (rand)))
 
-(prin (text "@1 insertions in +AList: " N)) (flush)
-(bench (for K InsKeys (put> A K "val")))
-(for K InsKeys (put> A K "val"))
+(when (<= N 10000)
+  (prin (text "@1 insertions in +AList: " N)) (flush)
+  (bench (for K InsKeys (put> A K "val")))
+  (for K InsKeys (put> A K "val")))
 
 (prin (text "@1 insertions in +BTree: " N)) (flush)
 (bench (for K InsKeys (put> B K "val")))
 (for K InsKeys (put> B K "val"))
 
-(setq M 200000)
+(if (<= N 10000)
+  (setq M 200000)
+  (setq M 1000000))
 (setq Idx (make (do M (link (rand 1 N)))))
 (setq GetKeys (mapcar '((X) (car (nth InsKeys X))) Idx))
 
-(prin (text "@1 gets in +AList of size @2: " M (align 5 N))) (flush)
-(bench (for X GetKeys (get> A K)))
+(when (<= N 10000)
+  (prin (text "@1 gets in +AList of size @2: " M (align 5 N))) (flush)
+  (bench (for X GetKeys (get> A K))))
 
 (prin (text "@1 gets in +BTree of size @2: " M (align 5 N))) (flush)
 (bench (for X GetKeys (get> B K)))
