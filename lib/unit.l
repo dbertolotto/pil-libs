@@ -22,7 +22,7 @@
 #        New (append Registered (list Name)))
 #    (push '*Tests (cons *TestCurrSuite New))))
 
-(local) with-color red green yellow
+(local) with-color red green yellow cyan
 
 (de with-color (Color . @Body)
   (when *TestColor (call "tput" "setaf" Color))
@@ -38,7 +38,10 @@
 (de yellow @Body
   (macro (with-color "3" ~'@Body)))
 
-(local) report-result check
+(de cyan @Body
+  (macro (with-color "6" ~'@Body)))
+
+(local) report-result
 
 (de report-result (Comp Forms)
   (let (FullForm (cons Comp Forms)
@@ -61,14 +64,16 @@
         (prinl "Check: " Comp)
         (for (I . F) Forms
           (prin (align 8 (text "F@1: " I)))
-          (println (eval F))))
+          (println (catch T (eval F)))))
       (if *TestStopOnError
         (quit "Error in test; check Comp, Forms, FullForm, Result")))
     Result))
 
-(de check (Comp . Forms)
-  (let report-fn '((F) (report-result Comp F))
-    (full (mapcar report-fn Forms))))
+(local) check
+
+(de check (CompareFn . Forms)
+  (let report-fn '((F) (report-result CompareFn F))
+    (mapcar report-fn Forms)))
 
 (local) check= checkN checkT
 
@@ -81,30 +86,37 @@
 (de checkT @Forms
   (macro (check '=T ~'@Forms)))
 
-(local) combine-results defsuite deftest
+(de throws? (Tag Error . @Form)
+  (let Outcome (catch '("Tag not found")
+                 (= Error (catch Tag (macro (eval (car '@Form))))))
+    (if (= Outcome "Tag not found")
+      NIL
+      Outcome)))
 
-(de combine-results @
-  (full (rest)))
+(de checkThrow @Forms
+  (macro (check 'throws? ~'@Forms)))
 
-#(de defsuite Args
-#  (let (Name (car Args))    # Suite name
-#    (push '*TestSuites Name)
-#    (setq *TestCurrSuite Name)))
+(local) defsuite deftest
+
+(de defsuite Args
+  (let ((Name Doc) Args)
+    (push '*TestSuites Name)
+    (setq *TestCurrSuite Name)))
 
 (de deftest Args
-  (let (@Name (car Args)    # Test name
-        @Params (cadr Args) # Test args
-        @Body (cddr Args))  # Test body
+  (let ((@Name @Doc . @Body) Args)
     (macro
-      (de @Name @Params
+      (de @Name @Doc
         (let *TestName (append *TestName (list '@Name))
+          (cyan (prinl (text "\nRunning test @1 - @2" '@Name '@Doc)))
           ~'@Body)))
+    (put @Name 'test T)
     (add-test @Name)))
 
 (de add-test (Name)
   (push '*Tests Name))
 
-(local) -run-suites -run-tests -no-color -no-success
+(local) -run-suites -run-tests summary
 
 #(de -run-suites @
 #  (let Suites (if (args) (rest) (flip *TestSuites))
@@ -113,18 +125,25 @@
 #      (apply '-run-tests (cdr (assoc Suite *Tests))))))
 
 (de -run-tests @
-  (prinl)
-  (let Tests (if (args) (rest) (flip *Tests))
+  (let (*TestRan 0
+        *TestFailed 0
+        Tests (if (args) (rest) (flip *Tests)))
     (for Test Tests
-      (Test)))
-  (summary))
+      (Test))
+    (summary)))
 
 (de summary ()
   (prinl)
   (prin "Test summary")
-  (prin " -- ran: " *TestsRan)
-  (prin " -- failed: " *TestsFailed)
+  (prin " -- ")
+  (green (prin "passed: " (- *TestsRan *TestsFailed)))
+  (prin " -- ")
+  (red (prin "failed: " *TestsFailed))
   (prinl))
+
+### command line interaction
+
+(local) -no-color -no-success -stop-on-error
 
 (de -no-color ()
   (prinl "* Colors off")
