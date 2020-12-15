@@ -21,7 +21,7 @@
     (idx (:: D) @ NIL)))
 (dm get> (K)
   (cdr (lup (: D) K)))
-(dm size> (K)
+(dm size> ()
   (length (idx (:: D))))
 (dm bal> ()
   (balance (:: D) (idx (:: D))))
