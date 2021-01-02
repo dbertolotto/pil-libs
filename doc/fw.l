@@ -3,31 +3,30 @@
     (macro (de @Name @Args ~'@Body))
     (put @Name 'Doc Doc)
     Name))
+(put 'de+ 'Doc
+  "(de+ ...)
 
-(de+ f (X)
-  "(f num)
+   Extended de function that allows a custom documentation string, stored as symbol property.")
 
-   Function that adds 1 to X.
+(de md-to (Target)
+  (pipe (out (list "cmark-gfm" "-t" Target)
+             (prinl (get Sym 'Doc)))
+        (till NIL T)))
 
-   In/out
-   - X input
-   - Y output
+(de+ doc+ (Sym)
+  "(doc+ Sym)
 
-   Does not do much in the end."
-   (+ X 1))
-
-(de doc+ (Sym)
+   Extended doc function that shows the documentation string. The string is converted from markdown to html and shown in the browser"
   (out '(w3m -T text/html)
-       #(prinl (pipe (out '(pandoc -f markdown+lists_without_preceding_blankline -t html -s --metadata title=Doc)
-       (prinl (pipe (out (list "pandoc" "-f" "markdown_github" "-t" "html" "-s" "--metadata" (pack "title=" Sym " documentation"))
-                         (prinl (get Sym 'Doc)))
-                    (till NIL T)))))
+       (prinl (md-to 'html)))
+  Sym)
 
-(de help+ (Sym)
+(de+ help+ (Sym)
+  "(help+ Sym)
+
+   Extended help function that shows the documentation string. The string is converted from markdown to plain text and shown in the browser"
   (prinl (pack (need 40 "=")))
-  (prinl (pipe (out (list "pandoc" "-f" "markdown_github" "-t" "plain" "-s" "--metadata" (pack "title=" Sym " documentation"))
-                    (prinl (get Sym 'Doc)))
-               (till NIL T)))
+  (prin (md-to 'commonmark))
   (prinl (pack (need 40 "=")))
   Sym)
 
