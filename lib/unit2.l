@@ -31,35 +31,6 @@
 
 (local) report-result
 
-(de report-result (Test)
-  (let (Form (get Test 'F)
-        Result (get Test 'R)
-        Success (and Result *TestShowSuccess)
-        Failure (not Result))
-    (setq *TestsRan (inc *TestsRan))
-    (when Success
-      (green (prin *TestPassMark)))
-    (when Failure
-      (red (prin *TestFailMark)))
-    (when (or Success Failure)
-      (prin " ... ")
-      (print *TestName)
-      (prin " : ")
-      (println Form))
-    (when Failure
-      (setq *TestsFailed (inc *TestsFailed))
-      (yellow
-        (prin "Check form: ")
-        (println Form)
-        (prin "Expected: `")
-        (print (: E))
-        (prin "` but got: `")
-        (print (: EF))
-        (prinl "`"))
-      (if *TestStopOnError
-        (quit "Error in test; check Comp, Forms, FullForm, Result")))
-    Result))
-
 (class +TestReport)
 (dm report> ()
   (let (Success (and (: R) *TestShowSuccess)
@@ -70,23 +41,23 @@
       (red (prin *TestFailMark)))
     (when (or Success Failure)
       (prin " ... ")
-      (print *TestName)
-      (prin " : ")
-      (println (: F)))
+      (if (str? (: D)) (prinl (: D)) (println (: D))))
     (unless (: R)
       (yellow
         (prin "Check form: ")
         (println (: F))
-        (prin "Expected: `")
+        (prin "  Expected: `")
         (print (: E))
-        (prin "` but got: `")
+        (prinl "`")
+        (prin "  Actual: `")
         (print (: EF))
         (prinl "`")))))
 
 (class +Test +TestReport)
-(dm T (Expected Form)
+(dm T (Expected Form Doc)
   (=: E Expected)
   (=: F Form)
+  (=: D (if Doc Doc (list '= Expected Form)))
   (push '*Tests This))
 (dm run> ()
   (=: EF (eval (: F)))
@@ -95,22 +66,14 @@
 
 (class +AssertEquals +Test)
 
-(class +AssertTrue +AssertEquals)
-(dm T (Form)
-  (super T Form))
+(de a= (Expected Form Doc)
+  (new '(+AssertEquals) Expected Form Doc))
 
-(class +AssertNil +AssertEquals)
-(dm T (Form)
-  (super NIL Form))
+(de aT (Form Doc)
+  (new '(+AssertEquals) T Form Doc))
 
-(de a= (Expected Form)
-  (new '(+AssertEquals) Expected Form))
-
-(de aT (Expected Form)
-  (new '(+AssertTrue) Expected Form))
-
-(de aN (Expected Form)
-  (new '(+AssertNil) Expected Form))
+(de aNil (Form Doc)
+  (new '(+AssertEquals) NIL Form Doc))
 
 (de run-test (Test)
   (run> Test)
@@ -138,9 +101,9 @@
     (prinl)))
 
 (a= 2 '(+ 1 1))
-(a= 3 '(+ 1 1))
+(a= 3 '(+ 1 1) "assert fail")
 (aT '(not NIL))
 (aT 'NIL)
-(aN '(not NIL))
-(aN 'NIL)
+(aNil '(not NIL))
+(aNil 'NIL)
 
