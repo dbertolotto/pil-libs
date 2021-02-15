@@ -1,0 +1,172 @@
+#!/usr/bin/env pil
+
+# vi: ft=picolisp
+
+#(symbols 'lip 'pico)
+
+(setq *ProjFile "proj.l")
+
+(class +Project)
+(dm T (Id)
+  (=: Id Id)
+  (=: Dir NIL)
+  (=: RepoDir ".lip")
+  (=: SourceDir "src")
+  (=: TargetDir "pack")
+  (=: TestPat ".*-test\\.l$")
+  (=: MainFile NIL)
+  (=: Deps NIL))
+(dm local-repo> ()
+  (pack (: Dir) "/" (: RepoDir)))
+(dm local-target> ()
+  (pack (: Dir) "/" (: TargetDir)))
+(dm clean-deps> ()
+  (call 'rm '-rf (local-repo> This)))
+(dm clean-pack> ()
+  (call 'rm '-rf (local-target> This)))
+(dm set-deps> Dependencies
+  (=: Deps (append (: Deps) Dependencies)))
+(dm set-main-file> (File)
+  (=: MainFile File))
+(dm get-main-file> ()
+  (when (: MainFile)
+    (pack (: TargetDir) "/" @)))
+
+
+# --- Utilities
+
+(de load+ @
+  (apply 'load
+         (mapcar
+         '((S)
+           (let Stream (chop S)
+             (if (= (car Stream) "#")
+               (pack *ProjDir "/" (cdr Stream))
+               S)))
+         (rest))))
+
+(de with-dir (Dir . @Body)
+  (let _Pwd_ (pwd)
+    (cd Dir)
+    (let _Res_ (macro ~'@Body)
+      (cd _Pwd_)
+      _Res_)))
+
+# --- Git functions
+
+(de git-clone (Repo Name Tag Dest)
+  (let Url (pack Repo "/" Name)
+    (call 'git 'clone '-q '-b Tag Url Dest)))
+
+(de git-pull (Dir)
+  (with-dir Dir
+    (call 'git 'pull '-qf)))
+
+(de git-checkout (Dir Tag)
+  (with-dir Dir
+    (call 'git 'checkout '-qf Tag)))
+
+# --- Dependencies handling
+
+(de fetch-deps (Proj)
+  (for D (get Proj 'Deps)
+    (let ((Repo Name Tag) D
+          Dest (pack (local-repo> Proj) "/" Name))
+      (prinl "fetching/updating " Name)
+      (if (dir Dest)
+        (prog
+          (git-checkout Dest Tag)
+          (git-pull Dest))
+        (git-clone Repo Name Tag Dest))
+      )))
+
+# --- Project file handling
+
+(de find-proj-dir ()
+  (let (ProjDir NIL
+        Pwd (pwd))
+    (until ProjDir
+      (if (member *ProjFile (dir))
+        (setq ProjDir (pwd))
+        (unless (and (cd "..") (<> @ "/"))
+          (prinl "Project not found")
+          (setq ProjDir T))))
+    (cd Pwd)
+    (if (=T ProjDir) NIL ProjDir)))
+
+# ---
+
+(de get-test-files (Proj)
+  (let Cmd (list 'sh '-c (pack "find . | grep \"" (get Proj 'TestPat) "\""))
+    (with-dir (get Proj 'Dir)
+      (make
+        (pipe (out Cmd)
+          (until (eof)
+            (link (line T))))))))
+
+(de run-tests (Proj)
+  (with-dir (get Proj 'Dir)
+    (for Test (get-test-files Proj)
+      (load Test))))
+
+# ---
+
+(de copy-deps (Proj)
+  (for D (get Proj Deps)
+    (let ((Repo Name Tag) D
+          Source (pack (local-repo> Proj) "/" Name "/" (get Proj 'SourceDir) "/*")
+          Dest (pack (get Proj 'Dir) "/" (get Proj 'TargetDir)))
+      (call 'cp '-R Source Dest))))
+
+(de copy-src (Proj)
+  (let (Source (get Proj 'SourceDir)
+        Target (get Proj 'TargetDir))
+    (with-dir *ProjDir
+      (call 'cp '-R Source Target))))
+
+# ---
+
+(de project (Id . @Body)
+  (let *Project (new '(+Project) Id)
+    (macro ~'@Body)
+    (push '*Projects *Project)))
+
+(de proj-deps Deps
+  (set-deps> *Project Deps))
+
+(de proj-main (File)
+  (set-main-file> *Project File))
+
+(setq *ProjDir (find-proj-dir))
+(if *ProjDir
+  (prog
+    (load (pack *ProjDir "/" *ProjFile))
+    (setq *Project (last *Projects))
+    (put *Project 'Dir *ProjDir))
+  (bye))
+
+# user commands
+(de -deps ()
+  (fetch-deps *Project)
+  (unless *Dbg (bye)))
+
+(de -clean ()
+  (clean-deps> *Project)
+  (clean-pack> *Project)
+  (unless *Dbg (bye)))
+
+(de -run ()
+  (-pack)
+  (if (get-main-file> *Project)
+    (prog
+      (load @)
+      (unless *Dbg (bye)))
+    (quit @ "No main file specified")))
+
+(de -test ()
+  (run-tests *Project)
+  (unless *Dbg (bye)))
+
+(de -pack ()
+  (copy-src *Project)
+  (unless *Dbg (bye)))
